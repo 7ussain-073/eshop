@@ -6,51 +6,99 @@
 
 @layer base {
   :root {
-    --background: 220 20% 4%;
-    --foreground: 0 0% 95%;
+    --background: 210 40% 98%;
+    --foreground: 215 25% 15%;
 
-    --card: 220 15% 8%;
-    --card-foreground: 0 0% 95%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
 
-    --popover: 220 15% 8%;
-    --popover-foreground: 0 0% 95%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
 
-    --primary: 45 90% 55%;
-    --primary-foreground: 220 20% 4%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 12% 14%;
-    --secondary-foreground: 0 0% 90%;
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 215 25% 25%;
 
-    --muted: 220 10% 18%;
-    --muted-foreground: 220 10% 55%;
+    --muted: 214 32% 91%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 38 80% 50%;
-    --accent-foreground: 220 20% 4%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 220 12% 16%;
-    --input: 220 12% 16%;
-    --ring: 45 90% 55%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 220 15% 6%;
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 45 90% 55%;
-    --sidebar-primary-foreground: 220 20% 4%;
-    --sidebar-accent: 220 12% 14%;
-    --sidebar-accent-foreground: 0 0% 90%;
-    --sidebar-border: 220 12% 16%;
-    --sidebar-ring: 45 90% 55%;
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 215 25% 15%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 32% 91%;
+    --sidebar-accent-foreground: 215 25% 25%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 217 91% 60%;
 
     /* Custom tokens */
-    --gold-glow: 45 100% 60%;
-    --gold-dark: 38 70% 40%;
-    --surface-elevated: 220 15% 10%;
+    --gold-glow: 217 91% 70%;
+    --gold-dark: 217 91% 45%;
+    --surface-elevated: 210 40% 96%;
     --badge-sale: 0 72% 51%;
-    --badge-digital: 200 80% 50%;
+    --badge-digital: 217 91% 60%;
+    --success: 142 72% 45%;
+    --whatsapp: 142 70% 45%;
+  }
+
+  .dark {
+    --background: 220 25% 6%;
+    --foreground: 210 40% 98%;
+
+    --card: 220 20% 10%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 220 20% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 18% 16%;
+    --secondary-foreground: 210 30% 85%;
+
+    --muted: 220 15% 20%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 217 91% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 18% 18%;
+    --input: 220 18% 18%;
+    --ring: 217 91% 60%;
+
+    --sidebar-background: 220 25% 8%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 18% 16%;
+    --sidebar-accent-foreground: 210 30% 85%;
+    --sidebar-border: 220 18% 18%;
+    --sidebar-ring: 217 91% 60%;
+
+    /* Custom tokens */
+    --gold-glow: 217 91% 70%;
+    --gold-dark: 217 91% 40%;
+    --surface-elevated: 220 20% 12%;
+    --badge-sale: 0 72% 51%;
+    --badge-digital: 217 91% 60%;
     --success: 142 72% 45%;
     --whatsapp: 142 70% 45%;
   }
@@ -88,6 +136,15 @@
 }
 
 @layer utilities {
+  .blue-gradient {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--gold-glow)));
+  }
+  .blue-text {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--gold-glow)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
   .gold-gradient {
     background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--gold-glow)));
   }
@@ -98,9 +155,9 @@
     background-clip: text;
   }
   .card-hover {
-    @apply transition-all duration-300 hover:border-primary/30 hover:shadow-[0_0_20px_rgba(212,175,55,0.15)];
+    @apply transition-all duration-300 hover:border-primary/30 hover:shadow-[0_0_20px_rgba(59,130,246,0.15)];
   }
   .gold-border-glow {
-    box-shadow: 0 0 15px rgba(212, 175, 55, 0.2), inset 0 0 15px rgba(212, 175, 55, 0.05);
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.2), inset 0 0 15px rgba(59, 130, 246, 0.05);
   }
 }
