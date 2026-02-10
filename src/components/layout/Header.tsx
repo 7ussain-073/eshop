@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingCart, Heart, Search, Menu, X, User, Package } from "lucide-react";
+import { ShoppingCart, Heart, Search, Menu, X, User, Package, LogOut } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useWishlist } from "@/contexts/WishlistContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { categories } from "@/data/products";
 import { Button } from "@/components/ui/button";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -12,6 +14,7 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState("");
   const { totalItems, setIsCartOpen } = useCart();
   const { wishlist } = useWishlist();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
 
   const handleSearch = (e: React.FormEvent) => {
@@ -71,7 +74,9 @@ export default function Header() {
         </form>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+
           <button
             onClick={() => setSearchOpen(!searchOpen)}
             className="rounded-lg p-2 text-foreground transition-colors hover:bg-secondary hover:text-primary lg:hidden"
@@ -103,12 +108,22 @@ export default function Header() {
             )}
           </button>
 
-          <Link
-            to="/login"
-            className="rounded-lg p-2 text-foreground transition-colors hover:bg-secondary hover:text-primary"
-          >
-            <User className="h-5 w-5" />
-          </Link>
+          {user ? (
+            <button
+              onClick={() => signOut()}
+              className="rounded-lg p-2 text-foreground transition-colors hover:bg-secondary hover:text-destructive"
+              title="تسجيل الخروج"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              className="rounded-lg p-2 text-foreground transition-colors hover:bg-secondary hover:text-primary"
+            >
+              <User className="h-5 w-5" />
+            </Link>
+          )}
 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
