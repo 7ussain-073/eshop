@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
-import type { Category, Product } from "@/data/products";
+import type { Category, Product } from "@/hooks/use-products";
 import ProductCard from "./ProductCard";
 
 interface CategorySectionProps {
@@ -15,7 +15,6 @@ export default function CategorySection({ category, products }: CategorySectionP
   return (
     <section className="py-8">
       <div className="container">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           whileInView={{ opacity: 1, x: 0 }}
@@ -37,7 +36,6 @@ export default function CategorySection({ category, products }: CategorySectionP
           </Link>
         </motion.div>
 
-        {/* Products grid */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {products.slice(0, 5).map((product, index) => (
             <ProductCard key={product.id} product={product} index={index} />

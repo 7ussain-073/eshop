@@ -4,7 +4,7 @@ import { ShoppingCart, Heart, Search, Menu, X, User, Package, LogOut } from "luc
 import { useCart } from "@/contexts/CartContext";
 import { useWishlist } from "@/contexts/WishlistContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { categories } from "@/data/products";
+import { useCategories } from "@/hooks/use-products";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -15,6 +15,7 @@ export default function Header() {
   const { totalItems, setIsCartOpen } = useCart();
   const { wishlist } = useWishlist();
   const { user, signOut } = useAuth();
+  const { data: categories = [] } = useCategories();
   const navigate = useNavigate();
 
   const handleSearch = (e: React.FormEvent) => {

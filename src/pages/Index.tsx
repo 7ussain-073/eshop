@@ -1,10 +1,13 @@
-import { categories, getProductsByCategory } from "@/data/products";
+import { useCategories, useProducts } from "@/hooks/use-products";
 import HeroBanner from "@/components/home/HeroBanner";
 import CategorySection from "@/components/home/CategorySection";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 
 const Index = () => {
+  const { data: categories = [] } = useCategories();
+  const { data: products = [] } = useProducts();
+
   return (
     <div className="min-h-screen">
       <HeroBanner />
@@ -37,7 +40,7 @@ const Index = () => {
 
       {/* Category sections */}
       {categories.map((category) => {
-        const catProducts = getProductsByCategory(category.id);
+        const catProducts = products.filter((p) => p.categoryId === category.id);
         return (
           <CategorySection
             key={category.id}

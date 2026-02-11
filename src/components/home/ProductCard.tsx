@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import { Heart, ShoppingCart } from "lucide-react";
 import { motion } from "framer-motion";
-import type { Product } from "@/data/products";
-import { getLowestPrice } from "@/data/products";
+import type { Product } from "@/hooks/use-products";
+import { getLowestPrice } from "@/hooks/use-products";
 import { useCart } from "@/contexts/CartContext";
 import { useWishlist } from "@/contexts/WishlistContext";
 
@@ -35,7 +35,6 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
           loading="lazy"
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
-        {/* Overlay on hover */}
         <div className="absolute inset-0 bg-background/20 opacity-0 transition-opacity group-hover:opacity-100" />
 
         {/* Badges */}

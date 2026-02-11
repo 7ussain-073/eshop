@@ -1,15 +1,14 @@
 import { Link } from "react-router-dom";
 import { useWishlist } from "@/contexts/WishlistContext";
-import { getProductById } from "@/data/products";
+import { useProducts } from "@/hooks/use-products";
 import ProductCard from "@/components/home/ProductCard";
 import { Heart, ArrowLeft } from "lucide-react";
 
 export default function WishlistPage() {
   const { wishlist } = useWishlist();
+  const { data: allProducts = [] } = useProducts();
 
-  const products = wishlist
-    .map((id) => getProductById(id))
-    .filter(Boolean) as NonNullable<ReturnType<typeof getProductById>>[];
+  const products = allProducts.filter((p) => wishlist.includes(p.id));
 
   if (products.length === 0) {
     return (
