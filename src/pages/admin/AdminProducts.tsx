@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+interface DBVariant {
+  id: string;
+  product_id: string;
+  duration: string;
+  price: number;
+  sale_price: number | null;
+  stock_status: string;
+}
 
 interface DBProduct {
   id: string;
@@ -11,7 +20,10 @@ interface DBProduct {
   status: string;
   category_id: string | null;
   created_at: string;
+  product_variants: DBVariant[];
 }
+
+const emptyVariant = { duration: "", price: "", sale_price: "", stock_status: "in_stock" };
 
 export default function AdminProducts() {
   const [products, setProducts] = useState<DBProduct[]>([]);
@@ -19,15 +31,17 @@ export default function AdminProducts() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", description: "", image_url: "", status: "published", category_id: "" });
+  const [variantForms, setVariantForms] = useState<{ id?: string; duration: string; price: string; sale_price: string; stock_status: string }[]>([{ ...emptyVariant }]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchData = async () => {
     const [{ data: prods }, { data: cats }] = await Promise.all([
-      supabase.from("products").select("*").order("created_at", { ascending: false }),
+      supabase.from("products").select("*, product_variants(*)").order("created_at", { ascending: false }),
       supabase.from("categories").select("id, name"),
     ]);
-    setProducts(prods || []);
+    setProducts((prods as DBProduct[]) || []);
     setCategories(cats || []);
     setLoading(false);
   };
@@ -44,23 +58,57 @@ export default function AdminProducts() {
       category_id: form.category_id || null,
     };
 
+    let productId = editingId;
+
     if (editingId) {
       const { error } = await supabase.from("products").update(payload).eq("id", editingId);
       if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); return; }
-      toast({ title: "تم تحديث المنتج" });
     } else {
-      const { error } = await supabase.from("products").insert(payload);
+      const { data, error } = await supabase.from("products").insert(payload).select("id").single();
       if (error) { toast({ title: "خطأ", description: error.message, variant: "destructive" }); return; }
-      toast({ title: "تم إضافة المنتج" });
+      productId = data.id;
     }
+
+    // Save variants
+    if (productId) {
+      // Delete removed variants
+      if (editingId) {
+        const existingProduct = products.find(p => p.id === editingId);
+        const keepIds = variantForms.filter(v => v.id).map(v => v.id!);
+        const toDelete = (existingProduct?.product_variants || []).filter(v => !keepIds.includes(v.id));
+        for (const v of toDelete) {
+          await supabase.from("product_variants").delete().eq("id", v.id);
+        }
+      }
+
+      for (const vf of variantForms) {
+        if (!vf.duration || !vf.price) continue;
+        const variantPayload = {
+          product_id: productId,
+          duration: vf.duration,
+          price: Number(vf.price),
+          sale_price: vf.sale_price ? Number(vf.sale_price) : null,
+          stock_status: vf.stock_status,
+        };
+        if (vf.id) {
+          await supabase.from("product_variants").update(variantPayload).eq("id", vf.id);
+        } else {
+          await supabase.from("product_variants").insert(variantPayload);
+        }
+      }
+    }
+
+    toast({ title: editingId ? "تم تحديث المنتج" : "تم إضافة المنتج" });
     setShowForm(false);
     setEditingId(null);
     setForm({ name: "", description: "", image_url: "", status: "published", category_id: "" });
+    setVariantForms([{ ...emptyVariant }]);
     fetchData();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذا المنتج؟")) return;
+    await supabase.from("product_variants").delete().eq("product_id", id);
     await supabase.from("products").delete().eq("id", id);
     toast({ title: "تم حذف المنتج" });
     fetchData();
@@ -69,8 +117,20 @@ export default function AdminProducts() {
   const startEdit = (p: DBProduct) => {
     setEditingId(p.id);
     setForm({ name: p.name, description: p.description || "", image_url: p.image_url || "", status: p.status, category_id: p.category_id || "" });
+    setVariantForms(
+      p.product_variants.length > 0
+        ? p.product_variants.map(v => ({ id: v.id, duration: v.duration, price: String(v.price), sale_price: v.sale_price ? String(v.sale_price) : "", stock_status: v.stock_status }))
+        : [{ ...emptyVariant }]
+    );
     setShowForm(true);
   };
+
+  const updateVariant = (index: number, field: string, value: string) => {
+    setVariantForms(prev => prev.map((v, i) => i === index ? { ...v, [field]: value } : v));
+  };
+
+  const addVariant = () => setVariantForms(prev => [...prev, { ...emptyVariant }]);
+  const removeVariant = (index: number) => setVariantForms(prev => prev.filter((_, i) => i !== index));
 
   if (loading) return <div className="text-muted-foreground">جاري التحميل...</div>;
 
@@ -79,7 +139,7 @@ export default function AdminProducts() {
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">إدارة المنتجات</h1>
         <button
-          onClick={() => { setShowForm(true); setEditingId(null); setForm({ name: "", description: "", image_url: "", status: "published", category_id: "" }); }}
+          onClick={() => { setShowForm(true); setEditingId(null); setForm({ name: "", description: "", image_url: "", status: "published", category_id: "" }); setVariantForms([{ ...emptyVariant }]); }}
           className="gold-gradient flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-primary-foreground"
         >
           <Plus className="h-4 w-4" /> إضافة منتج
@@ -121,6 +181,49 @@ export default function AdminProducts() {
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3}
               className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
           </div>
+
+          {/* Variants / Pricing */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-foreground">الأسعار والمدد</label>
+              <button type="button" onClick={addVariant} className="text-xs text-primary hover:underline">+ إضافة سعر</button>
+            </div>
+            {variantForms.map((vf, i) => (
+              <div key={i} className="grid gap-3 sm:grid-cols-5 items-end rounded-lg border border-border bg-secondary/30 p-3">
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">المدة</label>
+                  <input value={vf.duration} onChange={(e) => updateVariant(i, "duration", e.target.value)} placeholder="شهر واحد"
+                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">السعر (ر.س)</label>
+                  <input type="number" step="0.01" value={vf.price} onChange={(e) => updateVariant(i, "price", e.target.value)} placeholder="0"
+                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">سعر العرض</label>
+                  <input type="number" step="0.01" value={vf.sale_price} onChange={(e) => updateVariant(i, "sale_price", e.target.value)} placeholder="اختياري"
+                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">المخزون</label>
+                  <select value={vf.stock_status} onChange={(e) => updateVariant(i, "stock_status", e.target.value)}
+                    className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none">
+                    <option value="in_stock">متوفر</option>
+                    <option value="out_of_stock">نفذ</option>
+                  </select>
+                </div>
+                <div>
+                  {variantForms.length > 1 && (
+                    <button type="button" onClick={() => removeVariant(i)} className="rounded-lg p-2 text-destructive hover:bg-destructive/10">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
           <div className="flex gap-2">
             <button type="submit" className="gold-gradient rounded-lg px-6 py-2 text-sm font-bold text-primary-foreground">
               {editingId ? "تحديث" : "إضافة"}
@@ -138,6 +241,7 @@ export default function AdminProducts() {
           <thead>
             <tr className="border-b border-border bg-secondary/50">
               <th className="px-4 py-3 text-right font-medium text-muted-foreground">المنتج</th>
+              <th className="px-4 py-3 text-right font-medium text-muted-foreground">الأسعار</th>
               <th className="px-4 py-3 text-right font-medium text-muted-foreground">الحالة</th>
               <th className="px-4 py-3 text-right font-medium text-muted-foreground">إجراءات</th>
             </tr>
@@ -150,6 +254,35 @@ export default function AdminProducts() {
                     {p.image_url && <img src={p.image_url} alt="" className="h-10 w-10 rounded-lg object-cover" />}
                     <span className="font-medium text-foreground">{p.name}</span>
                   </div>
+                </td>
+                <td className="px-4 py-3">
+                  {p.product_variants.length > 0 ? (
+                    <div className="space-y-1">
+                      {p.product_variants.slice(0, expandedProduct === p.id ? undefined : 2).map(v => (
+                        <div key={v.id} className="flex items-center gap-2 text-xs">
+                          <span className="text-muted-foreground">{v.duration}:</span>
+                          {v.sale_price ? (
+                            <>
+                              <span className="font-semibold text-primary">{v.sale_price} ر.س</span>
+                              <span className="text-muted-foreground line-through">{v.price}</span>
+                            </>
+                          ) : (
+                            <span className="font-semibold text-foreground">{v.price} ر.س</span>
+                          )}
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${v.stock_status === 'in_stock' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                            {v.stock_status === 'in_stock' ? 'متوفر' : 'نفذ'}
+                          </span>
+                        </div>
+                      ))}
+                      {p.product_variants.length > 2 && (
+                        <button onClick={() => setExpandedProduct(expandedProduct === p.id ? null : p.id)} className="flex items-center gap-1 text-[10px] text-primary hover:underline">
+                          {expandedProduct === p.id ? <><ChevronUp className="h-3 w-3" /> أقل</> : <><ChevronDown className="h-3 w-3" /> +{p.product_variants.length - 2} أخرى</>}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">بدون أسعار</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.status === "published" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"}`}>
@@ -169,7 +302,7 @@ export default function AdminProducts() {
               </tr>
             ))}
             {products.length === 0 && (
-              <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">لا توجد منتجات بعد</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">لا توجد منتجات بعد</td></tr>
             )}
           </tbody>
         </table>
