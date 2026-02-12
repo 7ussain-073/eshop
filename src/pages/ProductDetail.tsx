@@ -6,6 +6,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useWishlist } from "@/contexts/WishlistContext";
 import { Heart, ShoppingCart, Shield, Zap, Clock, Check } from "lucide-react";
 import { motion } from "framer-motion";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +14,7 @@ export default function ProductDetail() {
   const { data: categories = [] } = useCategories();
   const { addItem } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { formatPrice, convert } = useCurrency();
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
 
   useEffect(() => {
@@ -95,11 +97,11 @@ export default function ProductDetail() {
                     <div className="mt-1 flex items-baseline gap-1">
                       {variant.salePrice ? (
                         <>
-                          <span className="text-primary font-bold">{variant.salePrice} ر.س</span>
-                          <span className="text-xs text-muted-foreground line-through">{variant.price}</span>
+                          <span className="text-primary font-bold">{formatPrice(variant.salePrice)}</span>
+                          <span className="text-xs text-muted-foreground line-through">{convert(variant.price)}</span>
                         </>
                       ) : (
-                        <span className="font-bold">{variant.price} ر.س</span>
+                        <span className="font-bold">{formatPrice(variant.price)}</span>
                       )}
                     </div>
                     {!variant.inStock && <div className="mt-1 text-[10px] text-destructive">نفذ</div>}
@@ -111,9 +113,9 @@ export default function ProductDetail() {
             {selectedVariant && (
               <div className="mt-6 rounded-xl border border-border bg-card p-4">
                 <div className="flex items-baseline gap-3">
-                  <span className="text-3xl font-bold text-primary">{selectedVariant.salePrice || selectedVariant.price} ر.س</span>
+                  <span className="text-3xl font-bold text-primary">{formatPrice(selectedVariant.salePrice || selectedVariant.price)}</span>
                   {selectedVariant.salePrice && (
-                    <span className="text-lg text-muted-foreground line-through">{selectedVariant.price} ر.س</span>
+                    <span className="text-lg text-muted-foreground line-through">{formatPrice(selectedVariant.price)}</span>
                   )}
                 </div>
               </div>

@@ -4,6 +4,7 @@ import { ShoppingCart, Heart, Search, Menu, X, User, Package, LogOut } from "luc
 import { useCart } from "@/contexts/CartContext";
 import { useWishlist } from "@/contexts/WishlistContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { useCategories } from "@/hooks/use-products";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -15,6 +16,7 @@ export default function Header() {
   const { totalItems, setIsCartOpen } = useCart();
   const { wishlist } = useWishlist();
   const { user, signOut } = useAuth();
+  const { currency, setCurrencyCode, currencies } = useCurrency();
   const { data: categories = [] } = useCategories();
   const navigate = useNavigate();
 
@@ -38,7 +40,18 @@ export default function Header() {
               تتبع الطلب
             </Link>
           </div>
-          <div>تفعيل فوري • ضمان كامل المدة • دعم على مدار الساعة</div>
+          <div className="flex items-center gap-3">
+            <span>تفعيل فوري • ضمان كامل المدة • دعم على مدار الساعة</span>
+            <select
+              value={currency.code}
+              onChange={(e) => setCurrencyCode(e.target.value)}
+              className="rounded border border-border bg-background px-2 py-0.5 text-xs text-foreground focus:border-primary focus:outline-none"
+            >
+              {currencies.map((c) => (
+                <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

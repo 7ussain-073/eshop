@@ -5,6 +5,7 @@ import type { Product } from "@/hooks/use-products";
 import { getLowestPrice } from "@/hooks/use-products";
 import { useCart } from "@/contexts/CartContext";
 import { useWishlist } from "@/contexts/WishlistContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface ProductCardProps {
   product: Product;
@@ -14,6 +15,7 @@ interface ProductCardProps {
 export default function ProductCard({ product, index = 0 }: ProductCardProps) {
   const { addItem } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { formatPrice, convert } = useCurrency();
   const { price, salePrice } = getLowestPrice(product);
   const inWishlist = isInWishlist(product.id);
   const hasStock = product.variants.some((v) => v.inStock);
@@ -92,15 +94,15 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
             {salePrice ? (
               <>
                 <span className="text-lg font-bold text-primary">
-                  {salePrice} <span className="text-xs">ر.س</span>
+                  {formatPrice(salePrice)}
                 </span>
                 <span className="text-xs text-muted-foreground line-through">
-                  {price}
+                  {convert(price)}
                 </span>
               </>
             ) : (
               <span className="text-lg font-bold text-primary">
-                {price} <span className="text-xs">ر.س</span>
+                {formatPrice(price)}
               </span>
             )}
           </div>

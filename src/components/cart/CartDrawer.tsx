@@ -1,11 +1,13 @@
 import { X, Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useCart } from "@/contexts/CartContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function CartDrawer() {
   const { items, isCartOpen, setIsCartOpen, removeItem, updateQuantity, totalPrice, totalItems } =
     useCart();
+  const { formatPrice } = useCurrency();
 
   return (
     <AnimatePresence>
@@ -81,7 +83,7 @@ export default function CartDrawer() {
                         </span>
                         <div className="mt-auto flex items-center justify-between pt-2">
                           <span className="text-sm font-bold text-primary">
-                            {(item.variant.salePrice || item.variant.price) * item.quantity} ر.س
+                            {formatPrice((item.variant.salePrice || item.variant.price) * item.quantity)}
                           </span>
                           <div className="flex items-center gap-1">
                             <button
@@ -124,7 +126,7 @@ export default function CartDrawer() {
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">المجموع</span>
                   <span className="text-xl font-bold text-primary">
-                    {totalPrice.toFixed(2)} ر.س
+                    {formatPrice(totalPrice)}
                   </span>
                 </div>
                 <Link
