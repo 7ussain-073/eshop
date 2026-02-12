@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 import { useCart } from "@/contexts/CartContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, clearCart, totalPrice } = useCart();
+  const { formatPrice } = useCurrency();
 
   if (items.length === 0) {
     return (
@@ -55,7 +57,7 @@ export default function CartPage() {
                     <span className="text-xs text-muted-foreground">{item.variant.duration}</span>
                     <div className="mt-auto flex items-center justify-between pt-3">
                       <span className="text-lg font-bold text-primary">
-                        {((item.variant.salePrice || item.variant.price) * item.quantity).toFixed(2)} ر.س
+                        {formatPrice((item.variant.salePrice || item.variant.price) * item.quantity)}
                       </span>
                       <div className="flex items-center gap-2">
                         <button
@@ -100,17 +102,17 @@ export default function CartPage() {
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between text-muted-foreground">
                   <span>المجموع الفرعي</span>
-                  <span>{totalPrice.toFixed(2)} ر.س</span>
+                  <span>{formatPrice(totalPrice)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>الضريبة (15%)</span>
-                  <span>{(totalPrice * 0.15).toFixed(2)} ر.س</span>
+                  <span>{formatPrice(totalPrice * 0.15)}</span>
                 </div>
                 <div className="border-t border-border pt-3">
                   <div className="flex justify-between">
                     <span className="font-bold text-foreground">الإجمالي</span>
                     <span className="text-xl font-bold text-primary">
-                      {(totalPrice * 1.15).toFixed(2)} ر.س
+                      {formatPrice(totalPrice * 1.15)}
                     </span>
                   </div>
                 </div>
