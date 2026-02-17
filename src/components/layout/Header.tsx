@@ -60,10 +60,10 @@ export default function Header() {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2">
           <div className="gold-gradient flex h-10 w-10 items-center justify-center rounded-lg text-xl font-bold text-primary-foreground">
-            S
+            A
           </div>
           <span className="hidden text-xl font-bold sm:block">
-            <span className="gold-text">Sponge</span>{" "}
+            <span className="gold-text">A2h</span>{" "}
             <span className="text-foreground">Store</span>
           </span>
         </Link>

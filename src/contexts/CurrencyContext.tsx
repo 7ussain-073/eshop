@@ -9,6 +9,7 @@ export interface Currency {
 
 const currencies: Currency[] = [
   { code: "SAR", symbol: "ر.س", name: "ريال سعودي", rate: 1 },
+  { code: "BHD", symbol: "ب.د", name: "دينار بحريني", rate: 0.1003 },
   { code: "USD", symbol: "$", name: "دولار أمريكي", rate: 0.2667 },
   { code: "EUR", symbol: "€", name: "يورو", rate: 0.2450 },
   { code: "AED", symbol: "د.إ", name: "درهم إماراتي", rate: 0.9793 },
@@ -28,7 +29,7 @@ const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [currencyCode, setCurrencyCode] = useState(() => {
-    return localStorage.getItem("currency") || "SAR";
+    return (localStorage.getItem("currency") as string) || "BHD"; // default main currency = BHD
   });
 
   const currency = currencies.find(c => c.code === currencyCode) || currencies[0];

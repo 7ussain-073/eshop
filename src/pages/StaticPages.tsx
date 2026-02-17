@@ -28,7 +28,7 @@ function StaticPage({ title, children }: { title: string; children: React.ReactN
 export function PrivacyPage() {
   return (
     <StaticPage title="سياسة الخصوصية">
-      <p>نحن في متجر سبونج نولي أهمية كبيرة لخصوصية عملائنا. توضح هذه السياسة كيفية جمع واستخدام وحماية معلوماتك الشخصية.</p>
+      <p>نحن في متجر A2h نولي أهمية كبيرة لخصوصية عملائنا. توضح هذه السياسة كيفية جمع واستخدام وحماية معلوماتك الشخصية.</p>
       <h2 className="text-lg font-semibold text-foreground">المعلومات التي نجمعها</h2>
       <p>نجمع المعلومات التالية عند استخدامك لمتجرنا:</p>
       <ul className="list-disc list-inside space-y-1 pr-4">
@@ -48,7 +48,7 @@ export function PrivacyPage() {
 export function TermsPage() {
   return (
     <StaticPage title="الشروط والأحكام">
-      <p>مرحباً بك في متجر سبونج. باستخدامك لهذا الموقع فإنك توافق على الشروط والأحكام التالية:</p>
+      <p>مرحباً بك في متجر A2h. باستخدامك لهذا الموقع فإنك توافق على الشروط والأحكام التالية:</p>
       <h2 className="text-lg font-semibold text-foreground">طبيعة المنتجات</h2>
       <p>جميع المنتجات المعروضة هي اشتراكات رقمية. لا يتم شحن أي منتجات مادية. يتم التسليم عبر إرسال بيانات التفعيل بعد إتمام عملية الدفع.</p>
       <h2 className="text-lg font-semibold text-foreground">الدفع</h2>
@@ -83,7 +83,7 @@ export function ComplaintsPage() {
       <h2 className="text-lg font-semibold text-foreground">كيفية تقديم شكوى</h2>
       <ul className="list-disc list-inside space-y-1 pr-4">
         <li>تواصل معنا عبر واتساب على الرقم: +966 50 000 0000</li>
-        <li>أرسل بريد إلكتروني إلى: support@spongestore.com</li>
+        <li>أرسل بريد إلكتروني إلى: support@a2hstore.com</li>
         <li>قم بذكر رقم الطلب وتفاصيل المشكلة</li>
       </ul>
       <h2 className="text-lg font-semibold text-foreground">مدة الرد</h2>

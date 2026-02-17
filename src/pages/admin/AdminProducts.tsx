@@ -34,19 +34,43 @@ export default function AdminProducts() {
   const [variantForms, setVariantForms] = useState<{ id?: string; duration: string; price: string; sale_price: string; stock_status: string }[]>([{ ...emptyVariant }]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const { toast } = useToast();
 
   const fetchData = async () => {
+    setLoading(true);
+
+    const productsQuery = selectedCategory
+      ? supabase.from("products").select("*, product_variants(*)").eq("category_id", selectedCategory).order("created_at", { ascending: false })
+      : supabase.from("products").select("*, product_variants(*)").order("created_at", { ascending: false });
+
     const [{ data: prods }, { data: cats }] = await Promise.all([
-      supabase.from("products").select("*, product_variants(*)").order("created_at", { ascending: false }),
+      productsQuery,
       supabase.from("categories").select("id, name"),
     ]);
-    setProducts((prods as DBProduct[]) || []);
-    setCategories(cats || []);
+
+    const catsArr = (cats || []) as { id: string; name: string }[];
+    setCategories(catsArr);
+
+    const prodsArr = (prods as DBProduct[]) || [];
+
+    // when showing all, sort by category name then date to make review easier
+    if (!selectedCategory) {
+      const nameMap = new Map(catsArr.map((c) => [c.id, c.name]));
+      prodsArr.sort((a, b) => {
+        const an = nameMap.get(a.category_id || "") || "";
+        const bn = nameMap.get(b.category_id || "") || "";
+        const cmp = an.localeCompare(bn, "ar", { sensitivity: "base" });
+        if (cmp !== 0) return cmp;
+        return b.created_at.localeCompare(a.created_at);
+      });
+    }
+
+    setProducts(prodsArr);
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [selectedCategory]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,12 +162,20 @@ export default function AdminProducts() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">إدارة المنتجات</h1>
-        <button
-          onClick={() => { setShowForm(true); setEditingId(null); setForm({ name: "", description: "", image_url: "", status: "published", category_id: "" }); setVariantForms([{ ...emptyVariant }]); }}
-          className="gold-gradient flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-primary-foreground"
-        >
-          <Plus className="h-4 w-4" /> إضافة منتج
-        </button>
+        <div className="flex items-center gap-3">
+          <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}
+            className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none">
+            <option value="">عرض جميع المنتجات</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+
+          <button
+            onClick={() => { setShowForm(true); setEditingId(null); setForm({ name: "", description: "", image_url: "", status: "published", category_id: "" }); setVariantForms([{ ...emptyVariant }]); }}
+            className="gold-gradient flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-primary-foreground"
+          >
+            <Plus className="h-4 w-4" /> إضافة منتج
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -241,6 +273,7 @@ export default function AdminProducts() {
           <thead>
             <tr className="border-b border-border bg-secondary/50">
               <th className="px-4 py-3 text-right font-medium text-muted-foreground">المنتج</th>
+              <th className="px-4 py-3 text-right font-medium text-muted-foreground">القسم</th>
               <th className="px-4 py-3 text-right font-medium text-muted-foreground">الأسعار</th>
               <th className="px-4 py-3 text-right font-medium text-muted-foreground">الحالة</th>
               <th className="px-4 py-3 text-right font-medium text-muted-foreground">إجراءات</th>
@@ -255,9 +288,9 @@ export default function AdminProducts() {
                     <span className="font-medium text-foreground">{p.name}</span>
                   </div>
                 </td>
+                <td className="px-4 py-3 text-sm text-muted-foreground">{categories.find((c) => c.id === p.category_id)?.name || 'بدون قسم'}</td>
                 <td className="px-4 py-3">
-                  {p.product_variants.length > 0 ? (
-                    <div className="space-y-1">
+                  {p.product_variants.length > 0 ? (                    <div className="space-y-1">
                       {p.product_variants.slice(0, expandedProduct === p.id ? undefined : 2).map(v => (
                         <div key={v.id} className="flex items-center gap-2 text-xs">
                           <span className="text-muted-foreground">{v.duration}:</span>

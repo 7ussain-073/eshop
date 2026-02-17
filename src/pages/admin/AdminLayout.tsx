@@ -1,3 +1,4 @@
+import React, { useEffect } from "react";
 import { Link, Outlet, useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Shield } from "lucide-react";
@@ -11,6 +12,12 @@ const navItems = [
 export default function AdminLayout() {
   const { user, isAdmin, loading, signOut } = useAuth();
   const location = useLocation();
+
+  useEffect(() => {
+    // force dark theme for admin area (persisted to localStorage so ThemeToggle stays consistent)
+    try { localStorage.setItem("theme", "dark"); } catch {}
+    document.documentElement.classList.add("dark");
+  }, []);
 
   if (loading) {
     return (
@@ -39,11 +46,11 @@ export default function AdminLayout() {
         <div className="p-4">
           <div className="flex items-center gap-2 mb-6">
             <div className="gold-gradient flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold text-primary-foreground">
-              S
+              A
             </div>
             <div>
               <span className="text-sm font-bold text-foreground">لوحة التحكم</span>
-              <p className="text-[10px] text-muted-foreground">Sponge Store</p>
+              <p className="text-[10px] text-muted-foreground">A2h Store</p>
             </div>
           </div>
 

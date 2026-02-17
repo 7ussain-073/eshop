@@ -10,15 +10,15 @@ export default function Footer() {
           <div>
             <Link to="/" className="mb-4 flex items-center gap-2">
               <div className="gold-gradient flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold text-primary-foreground">
-                S
+                A
               </div>
               <span className="text-lg font-bold">
-                <span className="gold-text">Sponge</span>{" "}
+                <span className="gold-text">A2h</span>{" "}
                 <span className="text-foreground">Store</span>
               </span>
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              متجر سبونج الرقمي - وجهتك الأولى لاشتراكات البث والخدمات الرقمية بأفضل الأسعار مع ضمان كامل المدة.
+              متجر A2h الرقمي - وجهتك الأولى لاشتراكات البث والخدمات الرقمية بأفضل الأسعار مع ضمان كامل المدة.
             </p>
           </div>
 
@@ -114,7 +114,7 @@ export default function Footer() {
               </a>
             </div>
             <div className="mt-4 text-sm text-muted-foreground">
-              <p>📧 support@spongestore.com</p>
+              <p>📧 support@a2hstore.com</p>
               <p className="mt-1">📱 +966 50 000 0000</p>
             </div>
           </div>
