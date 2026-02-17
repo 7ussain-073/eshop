@@ -41,10 +41,10 @@ export const categories: Category[] = [
     icon: "⭐",
   },
   {
-    id: "osn",
-    name: "اشتراكات OSN",
-    slug: "osn",
-    description: "اشتراكات OSN الرسمية مع ضمان التفعيل",
+    id: "tod",
+    name: "اشتراكات TOD",
+    slug: "tod",
+    description: "اشتراكات TOD الرسمية مع ضمان التفعيل",
     icon: "📺",
   },
   {
@@ -142,27 +142,27 @@ export const products: Product[] = [
       { id: "vip-2-3m", duration: "3 أشهر", price: 90, salePrice: 64.99, inStock: true },
     ],
   },
-  // OSN
+  // TOD
   {
-    id: "osn-1",
-    name: "اشتراك OSN+",
-    description: "اشتراك OSN+ الرسمي لمشاهدة أحدث الأفلام والمسلسلات",
+    id: "tod-1",
+    name: "اشتراك TOD",
+    description: "اشتراك TOD الرسمي لمشاهدة أحدث الأفلام والمسلسلات",
     image: "https://images.unsplash.com/photo-1593784991095-a205069470b6?w=400&h=400&fit=crop",
-    categoryId: "osn",
+    categoryId: "tod",
     featured: true,
     variants: [
-      { id: "osn-1-1m", duration: "شهر", price: 25, salePrice: 17.99, inStock: true },
-      { id: "osn-1-3m", duration: "3 أشهر", price: 70, salePrice: 44.99, inStock: true },
+      { id: "tod-1-1m", duration: "شهر", price: 25, salePrice: 17.99, inStock: true },
+      { id: "tod-1-3m", duration: "3 أشهر", price: 70, salePrice: 44.99, inStock: true },
     ],
   },
   {
-    id: "osn-2",
-    name: "اشتراك OSN العائلي",
-    description: "اشتراك OSN عائلي لعدة أجهزة",
+    id: "tod-2",
+    name: "اشتراك TOD العائلي",
+    description: "اشتراك TOD عائلي لعدة أجهزة",
     image: "https://images.unsplash.com/photo-1586899028174-e7098604235b?w=400&h=400&fit=crop",
-    categoryId: "osn",
+    categoryId: "tod",
     variants: [
-      { id: "osn-2-1m", duration: "شهر", price: 40, salePrice: 29.99, inStock: true },
+      { id: "tod-2-1m", duration: "شهر", price: 40, salePrice: 29.99, inStock: true },
     ],
   },
   // IPTV

@@ -140,7 +140,7 @@ export default function AdminSections() {
             onClick={async () => {
               // quick rename helper for existing categories
               const { error: e1 } = await supabase.from("categories").update({ name: "شاهد VIP" }).eq("slug", "vip");
-              const { error: e2 } = await supabase.from("categories").update({ name: "TOD", slug: "osn" }).eq("slug", "osn");
+              const { error: e2 } = await supabase.from("categories").update({ name: "TOD", slug: "TOD" }).eq("slug", "TOD");
               if (e1 || e2) {
                 toast({ title: "خطأ عند تطبيق التغييرات السريعة", description: (e1 || e2)?.message, variant: "destructive" });
               } else {
@@ -150,7 +150,7 @@ export default function AdminSections() {
             }}
             className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-secondary"
           >
-            تطبيق تحديث الأسماء (VIP → شاهد VIP, OSN → TOD)
+            تطبيق تحديث الأسماء (VIP → شاهد VIP, TOD → TOD)
           </button>
 
           <button onClick={() => { setShowForm(true); setEditingId(null); setForm({ name: "", slug: "", image_url: "", hidden: false }); }} className="gold-gradient flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-primary-foreground">

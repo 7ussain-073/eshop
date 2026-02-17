@@ -33,7 +33,7 @@ export interface Category {
 const categoryIcons: Record<string, string> = {
   netflix: "🎬",
   vip: "⭐",
-  osn: "📺",
+  tod: "📺",
   iptv: "📡",
   chatgpt: "🤖",
   crunchyroll: "🎌",

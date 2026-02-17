@@ -29,7 +29,7 @@ export default function HeroBanner() {
             <span className="text-foreground">بأفضل الأسعار</span>
           </h1>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground md:text-lg">
-            نتفلكس، شاهد، OSN، ChatGPT والمزيد — تفعيل فوري وضمان كامل المدة مع دعم على مدار الساعة
+            نتفلكس، شاهد، <TOD></TOD>، ChatGPT والمزيد — تفعيل فوري وضمان كامل المدة مع دعم على مدار الساعة
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
