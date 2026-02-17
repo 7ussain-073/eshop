@@ -177,7 +177,7 @@ export function useCategoryBySlug(slug: string) {
       const localHidden = getLocalHiddenCategories();
       if (!data) return null;
       // hide when DB `hidden` flag set or when locally hidden
-      if (data.hidden === true || localHidden.includes((data as any).id)) return null;
+      if ((data as any).hidden === true || localHidden.includes((data as any).id)) return null;
       return mapCategory(data);
     },
     enabled: !!slug,
