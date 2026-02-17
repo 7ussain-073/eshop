@@ -1,4 +1,4 @@
-# Welcome to your Lovable project
+# Welcome to your  project
 
 ## Project info
 
@@ -71,3 +71,24 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+---
+
+## Deploy to Vercel
+
+Quick steps to connect this repository to Vercel:
+
+1. Go to https://vercel.com/new and import the GitHub repository `7ussain-073/eshop`.
+2. Set the **Build Command** to `npm run build` and **Output Directory** to `dist` (Vercel will usually detect these automatically).
+3. Add these Environment Variables in your Vercel project settings (do NOT commit secrets to the repo):
+   - `VITE_SUPABASE_URL` — your Supabase project URL
+   - `VITE_SUPABASE_PUBLISHABLE_KEY` — your Supabase publishable (anon) key
+   - (optional / secret) `SUPABASE_SERVICE_ROLE` — required only if you deploy server-side migration/endpoints
+   - (optional / secret) `DATABASE_URL` — required only for running the local/serverless migration runner
+4. Deploy — the app is a static build (Vite -> `dist`) and client-side routing is handled by `vercel.json`.
+
+Tips:
+- To make the admin migration runner work on Vercel you must add `SUPABASE_SERVICE_ROLE` and `DATABASE_URL` as encrypted environment variables.
+- If you want the admin-selected currency to be stored globally, add a settings table + persist the value in Supabase and I can implement that for you.
+
+
