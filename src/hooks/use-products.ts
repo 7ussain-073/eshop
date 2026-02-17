@@ -72,16 +72,33 @@ function mapCategory(c: any): Category {
   };
 }
 
+import { getLocalHiddenCategories } from "@/lib/utils";
+
 export function useCategories() {
   return useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("*")
-        .order("sort_order");
-      if (error) throw error;
-      return (data || []).map(mapCategory);
+      // try full select (supports DB `hidden` column)
+      const { data, error } = await supabase.from("categories").select("*").order("sort_order");
+
+      // handle case where the `hidden` column doesn't exist in the DB (fallback)
+      if (error) {
+        const msg = String(error.message || "").toLowerCase();
+        if (msg.includes("hidden") || msg.includes('column "hidden"') || msg.includes("could not find the 'hidden' column")) {
+          const { data: fallback, error: fbErr } = await supabase
+            .from("categories")
+            .select("id, name, slug, image_url, sort_order")
+            .order("sort_order");
+          if (fbErr) throw fbErr;
+          const localHidden = getLocalHiddenCategories();
+          return (fallback || []).map(mapCategory).filter((c) => !localHidden.includes(c.id));
+        }
+        throw error;
+      }
+
+      const localHidden = getLocalHiddenCategories();
+      const rows = (data || []).filter((r: any) => !(r.hidden === true || localHidden.includes(r.id)));
+      return rows.map(mapCategory);
     },
   });
 }
@@ -137,12 +154,30 @@ export function useCategoryBySlug(slug: string) {
   return useQuery({
     queryKey: ["category-by-slug", slug],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("*")
-        .eq("slug", slug)
-        .single();
-      if (error) throw error;
+      // try full select (may include `hidden` column)
+      const { data, error } = await supabase.from("categories").select("*").eq("slug", slug).single();
+
+      // fallback when `hidden` doesn't exist in DB
+      if (error) {
+        const msg = String(error.message || "").toLowerCase();
+        if (msg.includes("hidden") || msg.includes('column "hidden"') || msg.includes("could not find the 'hidden' column")) {
+          const { data: fallback, error: fbErr } = await supabase
+            .from("categories")
+            .select("id, name, slug, image_url, sort_order")
+            .eq("slug", slug)
+            .single();
+          if (fbErr) throw fbErr;
+          const localHidden = getLocalHiddenCategories();
+          if (!fallback || localHidden.includes((fallback as any).id)) return null;
+          return mapCategory(fallback);
+        }
+        throw error;
+      }
+
+      const localHidden = getLocalHiddenCategories();
+      if (!data) return null;
+      // hide when DB `hidden` flag set or when locally hidden
+      if (data.hidden === true || localHidden.includes((data as any).id)) return null;
       return mapCategory(data);
     },
     enabled: !!slug,

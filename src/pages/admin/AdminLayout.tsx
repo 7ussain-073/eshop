@@ -1,16 +1,19 @@
 import React, { useEffect } from "react";
 import { Link, Outlet, useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Shield } from "lucide-react";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Shield, Layers } from "lucide-react";
 
 const navItems = [
   { icon: LayoutDashboard, label: "لوحة التحكم", path: "/admin" },
   { icon: Package, label: "المنتجات", path: "/admin/products" },
+  { icon: Layers, label: "الأقسام", path: "/admin/sections" },
   { icon: ShoppingCart, label: "الطلبات", path: "/admin/orders" },
 ];
 
 export default function AdminLayout() {
   const { user, isAdmin, loading, signOut } = useAuth();
+  const { currency, setCurrencyCode, currencies } = useCurrency();
   const location = useLocation();
 
   useEffect(() => {
@@ -48,9 +51,24 @@ export default function AdminLayout() {
             <div className="gold-gradient flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold text-primary-foreground">
               A
             </div>
-            <div>
-              <span className="text-sm font-bold text-foreground">لوحة التحكم</span>
-              <p className="text-[10px] text-muted-foreground">A2h Store</p>
+            <div className="flex-1">
+              <div>
+                <span className="text-sm font-bold text-foreground">لوحة التحكم</span>
+                <p className="text-[10px] text-muted-foreground">A2h Store</p>
+              </div>
+
+              <div className="mt-3">
+                <label className="mb-1 block text-xs text-muted-foreground">عملة العرض</label>
+                <select
+                  value={currency.code}
+                  onChange={(e) => setCurrencyCode(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-secondary px-2 py-1 text-sm text-foreground focus:border-primary focus:outline-none"
+                >
+                  {currencies.map((c) => (
+                    <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 

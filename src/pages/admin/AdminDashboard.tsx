@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Package, ShoppingCart, Users, TrendingUp, BarChart3 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface Stats {
   totalOrders: number;
@@ -17,6 +18,7 @@ export default function AdminDashboard() {
     totalProducts: 0,
     totalRevenue: 0,
   });
+  const { formatPrice } = useCurrency();
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -42,7 +44,7 @@ export default function AdminDashboard() {
     { icon: ShoppingCart, label: "إجمالي الطلبات", value: stats.totalOrders, color: "text-primary" },
     { icon: Package, label: "طلبات معلقة", value: stats.pendingOrders, color: "text-yellow-500" },
     { icon: BarChart3, label: "المنتجات", value: stats.totalProducts, color: "text-green-500" },
-    { icon: TrendingUp, label: "الإيرادات", value: `${stats.totalRevenue.toFixed(2)} ر.س`, color: "text-primary" },
+    { icon: TrendingUp, label: "الإيرادات", value: formatPrice(stats.totalRevenue), color: "text-primary" },
   ];
 
   return (

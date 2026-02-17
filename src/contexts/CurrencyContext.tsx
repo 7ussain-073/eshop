@@ -9,12 +9,9 @@ export interface Currency {
 
 const currencies: Currency[] = [
   { code: "SAR", symbol: "ر.س", name: "ريال سعودي", rate: 1 },
-  { code: "BHD", symbol: "ب.د", name: "دينار بحريني", rate: 0.1003 },
+  { code: "BHD", symbol: "د.ب", name: "دينار بحريني", rate: 0.1000 },
   { code: "USD", symbol: "$", name: "دولار أمريكي", rate: 0.2667 },
   { code: "EUR", symbol: "€", name: "يورو", rate: 0.2450 },
-  { code: "AED", symbol: "د.إ", name: "درهم إماراتي", rate: 0.9793 },
-  { code: "KWD", symbol: "د.ك", name: "دينار كويتي", rate: 0.0817 },
-  { code: "EGP", symbol: "ج.م", name: "جنيه مصري", rate: 13.20 },
 ];
 
 interface CurrencyContextType {

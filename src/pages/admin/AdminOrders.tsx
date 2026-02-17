@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface Order {
   id: string;
@@ -36,6 +37,7 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { formatPrice } = useCurrency();
 
   const fetchOrders = async () => {
     const { data } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
@@ -74,7 +76,7 @@ export default function AdminOrders() {
               <tr key={o.id} className="border-b border-border last:border-0">
                 <td className="px-4 py-3 font-mono text-xs text-foreground">{o.id.slice(0, 8)}...</td>
                 <td className="px-4 py-3 text-muted-foreground">{o.customer_email || o.customer_phone || "—"}</td>
-                <td className="px-4 py-3 font-medium text-foreground">{Number(o.total).toFixed(2)} ر.س</td>
+                <td className="px-4 py-3 font-medium text-foreground">{formatPrice(Number(o.total))}</td>
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[o.status] || ""}`}>
                     {statusLabels[o.status] || o.status}
