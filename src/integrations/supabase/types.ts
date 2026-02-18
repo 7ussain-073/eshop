@@ -153,37 +153,49 @@ export type Database = {
       }
       orders: {
         Row: {
-          created_at: string
-          customer_email: string | null
-          customer_phone: string | null
           id: string
-          payment_status: string | null
-          status: string
-          total: number
+          created_at: string
           updated_at: string
-          user_id: string | null
+          full_name: string
+          phone: string
+          email: string
+          plan_id: string
+          plan_name: string
+          amount: number
+          benefitpay_ref: string | null
+          payment_proof_url: string
+          status: "pending" | "approved" | "rejected"
+          notes: string | null
         }
         Insert: {
-          created_at?: string
-          customer_email?: string | null
-          customer_phone?: string | null
           id?: string
-          payment_status?: string | null
-          status?: string
-          total?: number
+          created_at?: string
           updated_at?: string
-          user_id?: string | null
+          full_name: string
+          phone: string
+          email: string
+          plan_id: string
+          plan_name: string
+          amount: number
+          benefitpay_ref?: string | null
+          payment_proof_url: string
+          status?: "pending" | "approved" | "rejected"
+          notes?: string | null
         }
         Update: {
-          created_at?: string
-          customer_email?: string | null
-          customer_phone?: string | null
           id?: string
-          payment_status?: string | null
-          status?: string
-          total?: number
+          created_at?: string
           updated_at?: string
-          user_id?: string | null
+          full_name?: string
+          phone?: string
+          email?: string
+          plan_id?: string
+          plan_name?: string
+          amount?: number
+          benefitpay_ref?: string | null
+          payment_proof_url?: string
+          status?: "pending" | "approved" | "rejected"
+          notes?: string | null
         }
         Relationships: []
       }

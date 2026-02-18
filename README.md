@@ -74,6 +74,74 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/c
 
 ---
 
+## BenefitPay Checkout System ✨
+
+This project includes a complete manual BenefitPay payment checkout system for accepting digital subscriptions.
+
+### Features
+- 🛒 Checkout page with payment proof image upload
+- 💼 Order management in Supabase database
+- 📧 Automated email confirmations via Resend or SendGrid
+- 👨‍💼 Admin dashboard for order verification
+- 📸 Payment proof preview in admin panel
+- ✅ Manual approval/rejection workflow
+
+### Getting Started with BenefitPay
+
+1. **Setup Guide**: [BENEFITPAY_SETUP.md](BENEFITPAY_SETUP.md)
+   - Database setup instructions
+   - Email service configuration
+   - Supabase Storage bucket creation
+
+2. **Deployment Guide**: [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md)
+   - Vercel deployment steps
+   - Environment variables setup
+   - Post-deployment verification
+
+3. **Admin Guide**: [ADMIN_ORDERS_GUIDE.md](ADMIN_ORDERS_GUIDE.md)
+   - How to review orders
+   - Payment verification process
+   - Order approval/rejection
+
+4. **Customer Guide**: [CUSTOMER_CHECKOUT_GUIDE.md](CUSTOMER_CHECKOUT_GUIDE.md)
+   - Checkout instructions
+   - Payment proof requirements
+   - Troubleshooting
+
+### Routes
+- **Checkout Page**: `/checkout` - Customer payment form
+- **Admin Orders**: `/admin/orders` - Order management dashboard
+
+### Environment Variables (for Email API)
+
+```env
+# Choose one email provider:
+
+# Resend (recommended)
+RESEND_API_KEY=<your-api-key>
+EMAIL_PROVIDER=resend
+
+# OR SendGrid
+SENDGRID_API_KEY=<your-api-key>
+EMAIL_PROVIDER=sendgrid
+```
+
+### API Endpoint
+```
+POST /api/send-order-email
+```
+Sends order confirmation email to customers.
+
+### Database Schema
+- `orders` table with customer info, plan details, payment proof, and status
+- `payment-proofs` storage bucket for image uploads
+- RLS policies for admin-only access control
+
+### Full Implementation Details
+See [BENEFITPAY_IMPLEMENTATION.md](BENEFITPAY_IMPLEMENTATION.md) for complete technical overview.
+
+---
+
 ## Deploy to Vercel
 
 Quick steps to connect this repository to Vercel:

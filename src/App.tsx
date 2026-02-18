@@ -16,6 +16,7 @@ import CategoryPage from "./pages/CategoryPage";
 import ProductDetail from "./pages/ProductDetail";
 import CartPage from "./pages/CartPage";
 import WishlistPage from "./pages/WishlistPage";
+import CheckoutPage from "./pages/CheckoutPage";
 import OrderTracking from "./pages/OrderTracking";
 import ContactPage from "./pages/ContactPage";
 import LoginPage from "./pages/LoginPage";
@@ -62,6 +63,7 @@ const App = () => (
                           <Route path="/product/:id" element={<ProductDetail />} />
                           <Route path="/cart" element={<CartPage />} />
                           <Route path="/wishlist" element={<WishlistPage />} />
+                          <Route path="/checkout" element={<CheckoutPage />} />
                           <Route path="/order-tracking" element={<OrderTracking />} />
                           <Route path="/contact" element={<ContactPage />} />
                           <Route path="/login" element={<LoginPage />} />
