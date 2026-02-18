@@ -131,7 +131,7 @@ export default function CheckoutPage() {
 
       // Create order in Supabase
       const { data: order, error: orderError } = await supabase
-        .from("orders")
+        .from("benefitpay_orders" as any)
         .insert({
           id: orderId,
           full_name: formData.fullName,
