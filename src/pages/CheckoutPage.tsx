@@ -124,16 +124,15 @@ export default function CheckoutPage() {
 
     try {
       // Generate order ID first
-      const orderId = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const tempId = crypto.randomUUID();
 
       // Upload payment proof
-      const paymentProofUrl = await uploadPaymentProof(orderId, formData.paymentProofFile!);
+      const paymentProofUrl = await uploadPaymentProof(tempId,formData.paymentProofFile!);
 
       // Create order in Supabase
       const { data: order, error: orderError } = await supabase
         .from("benefitpay_orders" as any)
         .insert({
-          id: orderId,
           full_name: formData.fullName,
           phone: formData.phone,
           email: formData.email,
@@ -145,9 +144,11 @@ export default function CheckoutPage() {
           status: "pending",
           notes: null,
         })
-        .select();
+        .select()
+        .single();
 
-      if (orderError) throw orderError;
+      if (!order) throw new Error("Order was not returned from Supabase");
+      const realOrderId = (order as any).id;
 
       // Send confirmation email via API route
       const emailResponse = await fetch("/api/send-order-email", {
@@ -156,7 +157,7 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           email: formData.email,
           fullName: formData.fullName,
-          orderId: orderId,
+          orderId: realOrderId,
           planName: selectedPlan?.name,
           amount: planPrice,
         }),
