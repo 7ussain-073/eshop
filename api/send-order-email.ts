@@ -21,11 +21,10 @@ async function sendEmailViaResend(
       Authorization: `Bearer ${resendApiKey}`,
     },
     body: JSON.stringify({
-      from: "A2H Store <onboarding@resend.dev>",
+      from: "A2H Store <noreply@a2h-store.store>",
       to,
       subject,
       html,
-      reply_to: "a2h.matjar@gmail.com"
     }),
   });
 
