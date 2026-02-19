@@ -48,33 +48,35 @@ export default function AdminOrders() {
   const { toast } = useToast();
   const { formatPrice } = useCurrency();
 
-  const fetchOrders = async () => {
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .order("created_at", { ascending: false });
+const fetchOrders = async () => {
+  const { data, error } = await supabase
+    .from("benefitpay_orders" as any)
+    .select("*")
+    .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching orders:", error);
-      toast({
-        title: "خطأ",
-        description: "فشل تحميل الطلبات",
-        variant: "destructive",
-      });
-      setLoading(false);
-      return;
-    }
-
-    // Sort by pending first, then by date
-    const sorted = (data || []).sort((a, b) => {
-      if (a.status === "pending" && b.status !== "pending") return -1;
-      if (a.status !== "pending" && b.status === "pending") return 1;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  if (error) {
+    console.error("Error fetching orders:", error);
+    toast({
+      title: "خطأ",
+      description: "فشل تحميل الطلبات",
+      variant: "destructive",
     });
-
-    setOrders(sorted);
     setLoading(false);
-  };
+    return;
+  }
+
+
+  // Sort by pending first, then by date
+  const sorted = ((data ?? []) as any[]).sort((a: BenefitPayOrder, b: BenefitPayOrder) => {
+    if (a.status === "pending" && b.status !== "pending") return -1;
+    if (a.status !== "pending" && b.status === "pending") return 1;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+
+  setOrders(sorted);
+  setLoading(false);
+};
+
 
   useEffect(() => {
     fetchOrders();
@@ -82,7 +84,7 @@ export default function AdminOrders() {
 
   const updateOrderStatus = async (orderId: string, newStatus: "approved" | "rejected") => {
     const { error } = await supabase
-      .from("orders")
+      .from("benefitpay_orders" as any)
       .update({ status: newStatus })
       .eq("id", orderId);
 
