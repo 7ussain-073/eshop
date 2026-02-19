@@ -1,37 +1,47 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { products } from "@/data/products";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertCircle, Upload, Check } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+
+interface DBVariant {
+  id: string;
+  product_id: string;
+  duration: string;
+  price: number; // SAR
+  sale_price: number | null; // SAR
+  stock_status: "in_stock" | "out_of_stock" | string;
+}
+
+interface DBProduct {
+  id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  status: "published" | "draft" | string;
+  product_variants: DBVariant[];
+}
 
 interface CheckoutFormData {
   fullName: string;
   phone: string;
   email: string;
-  planId: string;
+  productId: string;
+  variantId: string;
   benefitpayRef: string;
   paymentProofFile: File | null;
 }
+
+// اختياري: إذا تبغى تعرض بيانات التحويل للعميل
+const BENEFITPAY_IBAN = import.meta.env.VITE_BENEFITPAY_IBAN as string | undefined;
+const BENEFITPAY_QR_URL = import.meta.env.VITE_BENEFITPAY_QR_URL as string | undefined;
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -43,29 +53,90 @@ export default function CheckoutPage() {
     fullName: "",
     phone: "",
     email: "",
-    planId: "",
+    productId: "",
+    variantId: "",
     benefitpayRef: "",
     paymentProofFile: null,
   });
+
+  const [products, setProducts] = useState<DBProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Find selected plan details
-  const selectedPlan = useMemo(
-    () => products.find((p) => p.id === formData.planId),
-    [formData.planId]
+  // Fetch products + variants from Supabase
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      setLoadingProducts(true);
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, description, image_url, status, product_variants(id, product_id, duration, price, sale_price, stock_status)")
+        .eq("status", "published")
+        .order("created_at", { ascending: false });
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Fetch products error:", error);
+        toast({
+          title: "خطأ",
+          description: "فشل تحميل المنتجات",
+          variant: "destructive",
+        });
+        setProducts([]);
+        setLoadingProducts(false);
+        return;
+      }
+
+      // فلترة وترتيب بسيط للـ variants (المتوفر أولاً)
+      const rows = (data || []) as any[];
+      const mapped: DBProduct[] = rows.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description ?? null,
+        image_url: p.image_url ?? null,
+        status: p.status,
+        product_variants: (p.product_variants || []).slice().sort((a: DBVariant, b: DBVariant) => {
+          const ai = a.stock_status === "in_stock" ? 0 : 1;
+          const bi = b.stock_status === "in_stock" ? 0 : 1;
+          if (ai !== bi) return ai - bi;
+          return String(a.duration || "").localeCompare(String(b.duration || ""), "ar", { sensitivity: "base" });
+        }),
+      }));
+
+      setProducts(mapped);
+      setLoadingProducts(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [toast]);
+
+  const selectedProduct = useMemo(
+    () => products.find((p) => p.id === formData.productId),
+    [products, formData.productId]
   );
 
-  const selectedVariant = useMemo(() => {
-    // Use first variant for display (you can improve later)
-    return selectedPlan?.variants?.[0];
-  }, [selectedPlan]);
+  const selectedVariant = useMemo(
+    () => selectedProduct?.product_variants?.find((v) => v.id === formData.variantId),
+    [selectedProduct, formData.variantId]
+  );
 
-  const planPriceSAR = useMemo(() => {
-    return selectedVariant?.salePrice || selectedVariant?.price || 0;
+  // السعر الأساسي دائماً SAR من DB
+  const priceSar = useMemo(() => {
+    if (!selectedVariant) return 0;
+    const v = selectedVariant;
+    const base = v.sale_price ?? v.price ?? 0;
+    return Number(base) || 0;
   }, [selectedVariant]);
+
+  // تحويل حسب عملة الموقع المختارة
+  const amountInSelectedCurrency = useMemo(() => convert(priceSar), [convert, priceSar]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -73,11 +144,12 @@ export default function CheckoutPage() {
     if (!formData.fullName.trim()) newErrors.fullName = "الاسم الكامل مطلوب";
     if (!formData.phone.trim()) newErrors.phone = "رقم الهاتف مطلوب";
     if (!formData.email.trim()) newErrors.email = "البريد الإلكتروني مطلوب";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
-      newErrors.email = "البريد الإلكتروني غير صالح";
-    if (!formData.planId) newErrors.planId = "اختر خطة";
-    if (!formData.paymentProofFile)
-      newErrors.paymentProofFile = "تحميل إثبات الدفع مطلوب";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "البريد الإلكتروني غير صالح";
+
+    if (!formData.productId) newErrors.productId = "اختر المنتج";
+    if (!formData.variantId) newErrors.variantId = "اختر المدة/السعر";
+
+    if (!formData.paymentProofFile) newErrors.paymentProofFile = "تحميل إثبات الدفع مطلوب";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -87,50 +159,32 @@ export default function CheckoutPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith("image/")) {
-      setErrors((prev) => ({
-        ...prev,
-        paymentProofFile: "الملف يجب أن يكون صورة",
-      }));
+      setErrors((prev) => ({ ...prev, paymentProofFile: "الملف يجب أن يكون صورة" }));
       return;
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      setErrors((prev) => ({
-        ...prev,
-        paymentProofFile: "حجم الملف يجب أن يكون أقل من 5MB",
-      }));
+      setErrors((prev) => ({ ...prev, paymentProofFile: "حجم الملف يجب أن يكون أقل من 5MB" }));
       return;
     }
 
     setFormData((prev) => ({ ...prev, paymentProofFile: file }));
     setErrors((prev) => ({ ...prev, paymentProofFile: "" }));
 
-    // Create preview
     const reader = new FileReader();
     reader.onload = (ev) => setPreviewUrl(ev.target?.result as string);
     reader.readAsDataURL(file);
   };
 
-  const uploadPaymentProof = async (
-    orderId: string,
-    file: File
-  ): Promise<string> => {
-    const fileExt = file.name.split(".").pop();
+  const uploadPaymentProof = async (orderId: string, file: File): Promise<string> => {
+    const fileExt = file.name.split(".").pop() || "jpg";
     const fileName = `${orderId}-${Date.now()}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("payment-proofs")
-      .upload(fileName, file);
-
+    const { error: uploadError } = await supabase.storage.from("payment-proofs").upload(fileName, file);
     if (uploadError) throw new Error(`فشل تحميل الملف: ${uploadError.message}`);
 
-    const { data: publicUrl } = supabase.storage
-      .from("payment-proofs")
-      .getPublicUrl(fileName);
-
+    const { data: publicUrl } = supabase.storage.from("payment-proofs").getPublicUrl(fileName);
     return publicUrl.publicUrl;
   };
 
@@ -146,11 +200,10 @@ export default function CheckoutPage() {
       return;
     }
 
-    // extra safety (plan exists + has price)
-    if (!selectedPlan || !selectedVariant || !planPriceSAR) {
+    if (!selectedProduct || !selectedVariant) {
       toast({
         title: "خطأ",
-        description: "يرجى اختيار خطة صحيحة قبل إتمام الطلب",
+        description: "المنتج/المدة غير صحيحة",
         variant: "destructive",
       });
       return;
@@ -159,21 +212,16 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
 
     try {
-      // Convert amount based on selected currency at the moment of submit
-      const amountConverted = convert(planPriceSAR);
-      const currencyCode = currency.code;
-      const currencySymbol = currency.symbol;
-
-      // Generate order ID (UUID)
       const orderId = crypto.randomUUID();
 
-      // Upload payment proof
-      const paymentProofUrl = await uploadPaymentProof(
-        orderId,
-        formData.paymentProofFile!
-      );
+      // 1) Upload proof
+      const paymentProofUrl = await uploadPaymentProof(orderId, formData.paymentProofFile!);
 
-      // Create order in Supabase (BenefitPay orders table)
+      // 2) Amounts
+      const amount_sar = priceSar; // ✅ SAR دائماً من DB
+      const amount = amountInSelectedCurrency; // ✅ عملة العميل المختارة
+
+      // 3) Insert order (BenefitPay)
       const { error: orderError } = await supabase
         .from("benefitpay_orders" as any)
         .insert({
@@ -181,9 +229,18 @@ export default function CheckoutPage() {
           full_name: formData.fullName,
           phone: formData.phone,
           email: formData.email,
-          plan_id: selectedPlan.id,
-          plan_name: selectedPlan.name,
-          amount: amountConverted, // ✅ amount in selected currency
+
+          // plan_id = product uuid
+          plan_id: selectedProduct.id,
+          // plan_name = product + duration (أوضح للإدارة)
+          plan_name: `${selectedProduct.name} - ${selectedVariant.duration}`,
+
+          // amounts + currency info
+          amount, // selected currency
+          amount_sar, // SAR
+          currency_code: currency.code,
+          currency_symbol: currency.symbol,
+
           benefitpay_ref: formData.benefitpayRef || null,
           payment_proof_url: paymentProofUrl,
           status: "pending",
@@ -192,7 +249,7 @@ export default function CheckoutPage() {
 
       if (orderError) throw orderError;
 
-      // Send confirmation email via API route
+      // 4) Send email (same selected currency shown to customer)
       const emailResponse = await fetch("/api/send-order-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -200,10 +257,12 @@ export default function CheckoutPage() {
           email: formData.email,
           fullName: formData.fullName,
           orderId,
-          planName: selectedPlan.name,
-          amount: amountConverted, // ✅ amount in selected currency
-          currencyCode, // ✅ for email display
-          currencySymbol, // ✅ for email display
+          planName: `${selectedProduct.name} - ${selectedVariant.duration}`,
+          amount, // ✅ send converted amount
+          currencyCode: currency.code,
+          currencySymbol: currency.symbol,
+          // (اختياري) لو تبي تعرض SAR في الإيميل لاحقاً:
+          // amountSar: amount_sar,
         }),
       });
 
@@ -216,9 +275,7 @@ export default function CheckoutPage() {
         description: "سيتم التحقق من الدفع وإرسال تفاصيل الاشتراك قريباً",
       });
 
-      setTimeout(() => {
-        navigate("/");
-      }, 2000);
+      setTimeout(() => navigate("/"), 1500);
     } catch (error: any) {
       console.error("Checkout error:", error);
       toast({
@@ -235,22 +292,46 @@ export default function CheckoutPage() {
     <div className="min-h-screen py-6 md:py-12">
       <div className="container max-w-2xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">
-            الدفع عبر BenefitPay
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            أكمل بيانات طلبك وحمّل إثبات الدفع
-          </p>
+          <h1 className="text-3xl font-bold text-foreground">الدفع عبر BenefitPay</h1>
+          <p className="mt-2 text-muted-foreground">أكمل بيانات طلبك وحمّل إثبات الدفع</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Optional: Payment details (IBAN/QR) */}
+          {(BENEFITPAY_IBAN || BENEFITPAY_QR_URL) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>بيانات التحويل</CardTitle>
+                <CardDescription>حوّل المبلغ ثم ارفع إثبات الدفع</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {BENEFITPAY_IBAN && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">IBAN</p>
+                    <p className="select-all rounded-lg border border-border bg-secondary px-3 py-2 font-mono text-sm text-foreground">
+                      {BENEFITPAY_IBAN}
+                    </p>
+                  </div>
+                )}
+                {BENEFITPAY_QR_URL && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-foreground">QR Code</p>
+                    <img
+                      src={BENEFITPAY_QR_URL}
+                      alt="BenefitPay QR"
+                      className="max-w-[220px] rounded-lg border border-border bg-secondary p-2"
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* User Information */}
           <Card>
             <CardHeader>
               <CardTitle>بيانات العميل</CardTitle>
-              <CardDescription>
-                أدخل بيانات التواصل الخاصة بك
-              </CardDescription>
+              <CardDescription>أدخل بيانات التواصل الخاصة بك</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -260,17 +341,10 @@ export default function CheckoutPage() {
                     id="fullName"
                     placeholder="أحمد محمد"
                     value={formData.fullName}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        fullName: e.target.value,
-                      }))
-                    }
+                    onChange={(e) => setFormData((prev) => ({ ...prev, fullName: e.target.value }))}
                     className={errors.fullName ? "border-red-500" : ""}
                   />
-                  {errors.fullName && (
-                    <p className="text-xs text-red-500">{errors.fullName}</p>
-                  )}
+                  {errors.fullName && <p className="text-xs text-red-500">{errors.fullName}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -279,17 +353,10 @@ export default function CheckoutPage() {
                     id="phone"
                     placeholder="+966501234567"
                     value={formData.phone}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        phone: e.target.value,
-                      }))
-                    }
+                    onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
                     className={errors.phone ? "border-red-500" : ""}
                   />
-                  {errors.phone && (
-                    <p className="text-xs text-red-500">{errors.phone}</p>
-                  )}
+                  {errors.phone && <p className="text-xs text-red-500">{errors.phone}</p>}
                 </div>
 
                 <div className="space-y-2 sm:col-span-2">
@@ -299,70 +366,88 @@ export default function CheckoutPage() {
                     type="email"
                     placeholder="example@mail.com"
                     value={formData.email}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        email: e.target.value,
-                      }))
-                    }
+                    onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                     className={errors.email ? "border-red-500" : ""}
                   />
-                  {errors.email && (
-                    <p className="text-xs text-red-500">{errors.email}</p>
-                  )}
+                  {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Plan Selection */}
+          {/* Product + Variant Selection */}
           <Card>
             <CardHeader>
               <CardTitle>اختر الخطة</CardTitle>
-              <CardDescription>اختر الاشتراك الذي تريده</CardDescription>
+              <CardDescription>اختر المنتج ثم المدة/السعر</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="plan">الخطة *</Label>
+                <Label>المنتج *</Label>
                 <Select
-                  value={formData.planId}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, planId: value }))
-                  }
+                  value={formData.productId}
+                  onValueChange={(value) => {
+                    // reset variant when product changes
+                    setFormData((prev) => ({ ...prev, productId: value, variantId: "" }));
+                    setErrors((prev) => ({ ...prev, productId: "", variantId: "" }));
+                  }}
                 >
-                  <SelectTrigger
-                    id="plan"
-                    className={errors.planId ? "border-red-500" : ""}
-                  >
-                    <SelectValue placeholder="اختر خطة" />
+                  <SelectTrigger className={errors.productId ? "border-red-500" : ""}>
+                    <SelectValue placeholder={loadingProducts ? "جاري التحميل..." : "اختر المنتج"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {products.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name}
+                    {products.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {errors.planId && (
-                  <p className="mt-1 text-xs text-red-500">{errors.planId}</p>
-                )}
+                {errors.productId && <p className="mt-1 text-xs text-red-500">{errors.productId}</p>}
               </div>
 
-              {selectedPlan && selectedVariant && (
+              <div>
+                <Label>المدة / السعر *</Label>
+                <Select
+                  value={formData.variantId}
+                  onValueChange={(value) => {
+                    setFormData((prev) => ({ ...prev, variantId: value }));
+                    setErrors((prev) => ({ ...prev, variantId: "" }));
+                  }}
+                  disabled={!selectedProduct}
+                >
+                  <SelectTrigger className={errors.variantId ? "border-red-500" : ""}>
+                    <SelectValue placeholder={selectedProduct ? "اختر المدة" : "اختر المنتج أولاً"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(selectedProduct?.product_variants || []).map((v) => {
+                      const vPriceSar = Number(v.sale_price ?? v.price ?? 0) || 0;
+                      const label = `${v.duration} — ${formatPrice(vPriceSar)}${v.stock_status !== "in_stock" ? " (نفذ)" : ""}`;
+                      return (
+                        <SelectItem key={v.id} value={v.id} disabled={v.stock_status !== "in_stock"}>
+                          {label}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                {errors.variantId && <p className="mt-1 text-xs text-red-500">{errors.variantId}</p>}
+              </div>
+
+              {selectedProduct && selectedVariant && (
                 <div className="rounded-lg border border-border bg-secondary/50 p-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex justify-between items-center">
                     <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {selectedPlan.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        مدة: {selectedVariant.duration}
+                      <p className="text-sm font-medium text-foreground">{selectedProduct.name}</p>
+                      <p className="text-xs text-muted-foreground">مدة: {selectedVariant.duration}</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        السعر الأساسي: {Number(priceSar).toFixed(2)} ر.س
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold gold-text">
-                        {formatPrice(planPriceSAR)}
+                      <p className="text-lg font-bold gold-text">{formatPrice(priceSar)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ({currency.code})
                       </p>
                     </div>
                   </div>
@@ -379,19 +464,12 @@ export default function CheckoutPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <Label htmlFor="benefitPayRef">
-                  رقم إحالة BenefitPay (اختياري)
-                </Label>
+                <Label htmlFor="benefitPayRef">رقم إحالة BenefitPay (اختياري)</Label>
                 <Input
                   id="benefitPayRef"
                   placeholder="مثال: BP123456789"
                   value={formData.benefitpayRef}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      benefitpayRef: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setFormData((prev) => ({ ...prev, benefitpayRef: e.target.value }))}
                 />
               </div>
             </CardContent>
@@ -410,23 +488,15 @@ export default function CheckoutPage() {
                 {!previewUrl ? (
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/50 p-8 transition-colors hover:border-primary hover:bg-secondary/75"
+                    className="relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-secondary/50 p-8 cursor-pointer transition-colors hover:border-primary hover:bg-secondary/75"
                   >
                     <Upload className="h-8 w-8 text-muted-foreground" />
-                    <p className="text-sm font-medium text-foreground">
-                      انقر لتحميل الصورة أو اسحبها هنا
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      (صور فقط، بحد أقصى 5MB)
-                    </p>
+                    <p className="text-sm font-medium text-foreground">انقر لتحميل الصورة أو اسحبها هنا</p>
+                    <p className="text-xs text-muted-foreground">(صور فقط، بحد أقصى 5MB)</p>
                   </div>
                 ) : (
-                  <div className="relative overflow-hidden rounded-lg border border-border bg-secondary/50">
-                    <img
-                      src={previewUrl}
-                      alt="Payment proof preview"
-                      className="h-64 w-full object-cover"
-                    />
+                  <div className="relative rounded-lg border border-border overflow-hidden bg-secondary/50">
+                    <img src={previewUrl} alt="Payment proof preview" className="h-64 w-full object-cover" />
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -449,48 +519,40 @@ export default function CheckoutPage() {
                 {formData.paymentProofFile && (
                   <div className="flex items-center gap-2 rounded-lg bg-green-100/20 p-2">
                     <Check className="h-4 w-4 text-green-600" />
-                    <p className="text-xs text-green-700">
-                      {formData.paymentProofFile.name}
-                    </p>
+                    <p className="text-xs text-green-700">{formData.paymentProofFile.name}</p>
                   </div>
                 )}
 
-                {errors.paymentProofFile && (
-                  <p className="text-xs text-red-500">{errors.paymentProofFile}</p>
-                )}
+                {errors.paymentProofFile && <p className="text-xs text-red-500">{errors.paymentProofFile}</p>}
               </div>
             </CardContent>
           </Card>
 
           {/* Summary */}
-          {selectedVariant && (
-            <Card className="border-primary/20 bg-secondary/50">
+          {selectedProduct && selectedVariant && (
+            <Card className="bg-secondary/50 border-primary/20">
               <CardContent className="pt-6">
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">الخطة:</span>
-                    <span className="font-medium text-foreground">
-                      {selectedPlan?.name}
-                    </span>
+                    <span className="font-medium text-foreground">{selectedProduct.name}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">المدة:</span>
-                    <span className="font-medium text-foreground">
-                      {selectedVariant.duration}
-                    </span>
+                    <span className="font-medium text-foreground">{selectedVariant.duration}</span>
                   </div>
-                  <div className="flex justify-between border-t border-border pt-2">
+                  <div className="border-t border-border pt-2 flex justify-between">
                     <span className="font-medium text-foreground">الإجمالي:</span>
-                    <span className="text-lg font-bold gold-text">
-                      {formatPrice(planPriceSAR)}
-                    </span>
+                    <span className="text-lg font-bold gold-text">{formatPrice(priceSar)}</span>
                   </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    سيتم حفظ الطلب بعملة العميل ({currency.code}) وكذلك بالريال (SAR) للإدارة.
+                  </p>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Info Alert */}
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
@@ -498,12 +560,7 @@ export default function CheckoutPage() {
             </AlertDescription>
           </Alert>
 
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full gold-gradient h-12 text-base font-bold"
-          >
+          <Button type="submit" disabled={isSubmitting} className="w-full gold-gradient h-12 text-base font-bold">
             {isSubmitting ? "جاري معالجة الطلب..." : "تم الدفع / إرسال الطلب"}
           </Button>
         </form>

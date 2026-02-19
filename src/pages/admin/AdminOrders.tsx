@@ -22,11 +22,18 @@ interface BenefitPayOrder {
   plan_id: string;
   plan_name: string;
   amount: number;
+
+  // ✅ ضيفهم
+  amount_sar?: number | null;
+  currency_code?: string | null;
+  currency_symbol?: string | null;
+
   benefitpay_ref: string | null;
   payment_proof_url: string;
   status: "pending" | "approved" | "rejected";
   notes: string | null;
 }
+
 
 const statusLabels: Record<string, string> = {
   pending: "قيد المراجعة",
@@ -164,7 +171,7 @@ const fetchOrders = async () => {
                         <div>
                           <p className="text-xs font-medium text-muted-foreground">المبلغ</p>
                           <p className="text-sm font-bold gold-text">
-                            {formatPrice(order.amount)}
+                            {Number(order.amount).toFixed(2)} {order.currency_symbol || ""}
                           </p>
                         </div>
                       </div>
