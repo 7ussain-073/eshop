@@ -239,19 +239,20 @@ export default async function handler(
     });
   }
 
+  const amountNum = Number(amount);
+  if (!Number.isFinite(amountNum)) {
+    return res.status(400).json({ error: "Invalid amount" });
+  }
+
   try {
     const htmlContent = generateOrderConfirmationEmail(
       fullName,
       orderId,
       planName,
-      amount
+      amountNum // ✅ هنا
     );
 
-    await sendEmail(
-      email,
-      `تأكيد طلب الاشتراك - ${orderId}`,
-      htmlContent
-    );
+    await sendEmail(email, `تأكيد طلب الاشتراك - ${orderId}`, htmlContent);
 
     return res.status(200).json({
       success: true,
