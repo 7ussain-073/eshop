@@ -1,14 +1,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 // Email service configuration
-// Support for Resend or SendGrid
 const EMAIL_PROVIDER = process.env.EMAIL_PROVIDER || "resend";
 
-async function sendEmailViaResend(
-  to: string,
-  subject: string,
-  html: string
-): Promise<void> {
+// Fallback currency symbols
+const SYMBOLS: Record<string, string> = {
+  BHD: "د.ب",
+  SAR: "ر.س",
+  USD: "$",
+  EUR: "€",
+};
+
+async function sendEmailViaResend(to: string, subject: string, html: string): Promise<void> {
   const resendApiKey = process.env.RESEND_API_KEY;
   if (!resendApiKey) {
     throw new Error("RESEND_API_KEY is not configured");
@@ -29,16 +32,12 @@ async function sendEmailViaResend(
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Resend API error: ${error.message}`);
+    const error = await response.json().catch(() => ({}));
+    throw new Error(`Resend API error: ${error?.message || response.statusText}`);
   }
 }
 
-async function sendEmailViaSendGrid(
-  to: string,
-  subject: string,
-  html: string
-): Promise<void> {
+async function sendEmailViaSendGrid(to: string, subject: string, html: string): Promise<void> {
   const sendgridApiKey = process.env.SENDGRID_API_KEY;
   if (!sendgridApiKey) {
     throw new Error("SENDGRID_API_KEY is not configured");
@@ -51,19 +50,10 @@ async function sendEmailViaSendGrid(
       Authorization: `Bearer ${sendgridApiKey}`,
     },
     body: JSON.stringify({
-      personalizations: [
-        {
-          to: [{ email: to }],
-          subject,
-        },
-      ],
-      from: { email: "noreply@a2h-store.com", name: "A2h Store" },
-      content: [
-        {
-          type: "text/html",
-          value: html,
-        },
-      ],
+      personalizations: [{ to: [{ email: to }], subject }],
+      // ✅ خليها دومينك الصحيح
+      from: { email: "noreply@a2h-store.store", name: "A2H Store" },
+      content: [{ type: "text/html", value: html }],
     }),
   });
 
@@ -73,11 +63,7 @@ async function sendEmailViaSendGrid(
   }
 }
 
-async function sendEmail(
-  to: string,
-  subject: string,
-  html: string
-): Promise<void> {
+async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   if (EMAIL_PROVIDER === "sendgrid") {
     await sendEmailViaSendGrid(to, subject, html);
   } else {
@@ -89,8 +75,14 @@ function generateOrderConfirmationEmail(
   fullName: string,
   orderId: string,
   planName: string,
-  amount: number
+  amount: number,
+  currencySymbol: string
 ): string {
+  const safeName = String(fullName || "").trim() || "عميلنا العزيز";
+  const safePlan = String(planName || "").trim() || "—";
+  const safeOrder = String(orderId || "").trim() || "—";
+  const safeSymbol = String(currencySymbol || "").trim() || "—";
+
   return `
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -99,83 +91,27 @@ function generateOrderConfirmationEmail(
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>تأكيد الطلب</title>
     <style>
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        line-height: 1.6;
-        color: #333;
-      }
-      .container {
-        max-width: 600px;
-        margin: 0 auto;
-        padding: 20px;
-        background-color: #f9f9f9;
-      }
-      .header {
-        text-align: center;
-        padding: 20px 0;
-        border-bottom: 2px solid #d4af37;
-      }
-      .header h1 {
-        color: #d4af37;
-        margin: 0;
-        font-size: 28px;
-      }
-      .content {
-        background-color: white;
-        padding: 30px;
-        margin: 20px 0;
-        border-radius: 8px;
-      }
-      .order-details {
-        background-color: #f5f5f5;
-        padding: 20px;
-        border-radius: 6px;
-        margin: 20px 0;
-      }
-      .detail-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 10px 0;
-        border-bottom: 1px solid #eee;
-      }
-      .detail-row:last-child {
-        border-bottom: none;
-      }
-      .label {
-        color: #666;
-        font-weight: 500;
-      }
-      .value {
-        color: #333;
-        font-weight: 600;
-      }
-      .footer {
-        text-align: center;
-        padding: 20px;
-        color: #999;
-        font-size: 12px;
-      }
-      .status-pending {
-        background-color: #fff3cd;
-        color: #856404;
-        padding: 12px;
-        border-radius: 4px;
-        margin: 15px 0;
-        border-right: 4px solid #ffc107;
-      }
+      body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; }
+      .header { text-align: center; padding: 20px 0; border-bottom: 2px solid #d4af37; }
+      .header h1 { color: #d4af37; margin: 0; font-size: 28px; }
+      .content { background-color: white; padding: 30px; margin: 20px 0; border-radius: 8px; }
+      .order-details { background-color: #f5f5f5; padding: 20px; border-radius: 6px; margin: 20px 0; }
+      .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+      .detail-row:last-child { border-bottom: none; }
+      .label { color: #666; font-weight: 500; }
+      .value { color: #333; font-weight: 600; }
+      .footer { text-align: center; padding: 20px; color: #999; font-size: 12px; }
+      .status-pending { background-color: #fff3cd; color: #856404; padding: 12px; border-radius: 4px; margin: 15px 0; border-right: 4px solid #ffc107; }
     </style>
   </head>
   <body>
     <div class="container">
-      <div class="header">
-        <h1>A2h Store</h1>
-      </div>
+      <div class="header"><h1>A2H Store</h1></div>
 
       <div class="content">
-        <p>مرحباً ${fullName},</p>
-
-        <p>شكراً لك على اختيار خدمات A2h Store!</p>
-
+        <p>مرحباً ${safeName},</p>
+        <p>شكراً لك على اختيار خدمات A2H Store!</p>
         <p>لقد استقبلنا طلبك بنجاح. سيتم التحقق من إثبات الدفع الخاص بك وتأكيد اشتراكك قريباً.</p>
 
         <div class="status-pending">
@@ -187,15 +123,15 @@ function generateOrderConfirmationEmail(
         <div class="order-details">
           <div class="detail-row">
             <span class="label">رقم الطلب:</span>
-            <span class="value">${orderId}</span>
+            <span class="value">${safeOrder}</span>
           </div>
           <div class="detail-row">
             <span class="label">الخطة:</span>
-            <span class="value">${planName}</span>
+            <span class="value">${safePlan}</span>
           </div>
           <div class="detail-row">
             <span class="label">المبلغ:</span>
-            <span class="value">${amount.toFixed(2)} BHD</span>
+            <span class="value">${Number(amount).toFixed(2)} ${safeSymbol}</span>
           </div>
         </div>
 
@@ -212,7 +148,7 @@ function generateOrderConfirmationEmail(
       </div>
 
       <div class="footer">
-        <p>© 2024 A2h Store. جميع الحقوق محفوظة.</p>
+        <p>© 2024 A2H Store. جميع الحقوق محفوظة.</p>
         <p>هذا البريد الإلكتروني تم إرساله تلقائياً. يرجى عدم الرد عليه مباشرة.</p>
       </div>
     </div>
@@ -221,17 +157,12 @@ function generateOrderConfirmationEmail(
   `.trim();
 }
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-) {
-  // Only allow POST requests
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Validate request body
-  const { email, fullName, orderId, planName, amount } = req.body;
+  const { email, fullName, orderId, planName, amount, currencyCode, currencySymbol } = req.body ?? {};
 
   if (!email || !fullName || !orderId || !planName || amount === undefined) {
     return res.status(400).json({
@@ -244,15 +175,22 @@ export default async function handler(
     return res.status(400).json({ error: "Invalid amount" });
   }
 
+  // ✅ Symbol fallback logic
+  const safeSymbol =
+    (typeof currencySymbol === "string" && currencySymbol.trim()) ||
+    (typeof currencyCode === "string" && SYMBOLS[currencyCode]) ||
+    "د.ب";
+
   try {
     const htmlContent = generateOrderConfirmationEmail(
-      fullName,
-      orderId,
-      planName,
-      amountNum // ✅ هنا
+      String(fullName),
+      String(orderId),
+      String(planName),
+      amountNum,
+      safeSymbol
     );
 
-    await sendEmail(email, `تأكيد طلب الاشتراك - ${orderId}`, htmlContent);
+    await sendEmail(String(email), `تأكيد طلب الاشتراك - ${orderId}`, htmlContent);
 
     return res.status(200).json({
       success: true,
@@ -263,7 +201,7 @@ export default async function handler(
 
     return res.status(500).json({
       error: "Failed to send email",
-      details: error.message,
+      details: error?.message || String(error),
     });
   }
 }
