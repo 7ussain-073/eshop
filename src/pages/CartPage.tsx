@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "@/contexts/CartContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft } from "lucide-react";
@@ -7,6 +7,8 @@ import { motion } from "framer-motion";
 export default function CartPage() {
   const { items, removeItem, updateQuantity, clearCart, totalPrice } = useCart();
   const { formatPrice } = useCurrency();
+  const navigate = useNavigate();
+
 
   if (items.length === 0) {
     return (
@@ -117,7 +119,7 @@ export default function CartPage() {
                   </div>
                 </div>
               </div>
-              <button className="gold-gradient mt-6 w-full rounded-xl py-3 text-sm font-bold text-primary-foreground transition-transform hover:scale-[1.02]">
+              <button type="button"onClick={() => navigate("/checkout")} className="gold-gradient mt-6 w-full rounded-xl py-3 text-sm font-bold text-primary-foreground transition-transform hover:scale-[1.02]">
                 إتمام الشراء
               </button>
               <p className="mt-3 text-center text-[11px] text-muted-foreground">
