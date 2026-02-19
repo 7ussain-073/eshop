@@ -301,7 +301,7 @@ const fetchOrders = async () => {
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">المبلغ:</span>
                   <span className="text-sm font-bold gold-text">
-                    {formatPrice(selectedOrder.amount)}
+                    {Number(selectedOrder.amount).toFixed(2)} {selectedOrder.currency_symbol}
                   </span>
                 </div>
                 {selectedOrder.benefitpay_ref && (
