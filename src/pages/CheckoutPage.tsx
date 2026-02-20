@@ -28,7 +28,7 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { formatPrice, convert, currency } = useCurrency();
-  const { items, totalPrice, clearCart } = useCart(); // ✅ ناخذ السلة مباشرة
+  const { items, totalPrice, clearCart } = useCart();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<CheckoutFormData>({
@@ -43,36 +43,44 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // IBAN from Supabase
+  // ✅ لمنع redirect للسلة بعد نجاح الطلب
+  const [checkoutCompleted, setCheckoutCompleted] = useState(false);
+
+  // IBAN
   const [paymentInfo, setPaymentInfo] = useState<{ accountName: string; iban: string }>({ accountName: "", iban: "" });
   const [loadingPaymentInfo, setLoadingPaymentInfo] = useState(true);
 
-  // ✅ إجمالي السلة بالـ SAR (حسب الـ CartContext عندك totalPrice مفروض SAR)
+  // إجمالي السلة بالـ SAR (حسب CartContext)
   const totalSar = useMemo(() => Number(totalPrice) || 0, [totalPrice]);
   const totalInSelectedCurrency = useMemo(() => convert(totalSar), [convert, totalSar]);
 
-  // ✅ عناصر الطلب اللي بنخزنها في items jsonb
+  // عناصر الطلب (jsonb)
   const orderItems = useMemo(() => {
-    return items.map((it) => ({
-      product_id: it.product.id,
-      product_name: it.product.name,
-      variant_id: it.variant.id,
-      duration: it.variant.duration,
-      quantity: it.quantity,
-      price_sar: Number(it.variant.salePrice ?? it.variant.price ?? 0),
-      line_total_sar: Number(it.variant.salePrice ?? it.variant.price ?? 0) * it.quantity,
-    }));
+    return items.map((it) => {
+      const unitSar = Number(it.variant.salePrice ?? it.variant.price ?? 0);
+      return {
+        product_id: it.product.id,
+        product_name: it.product.name,
+        variant_id: it.variant.id,
+        duration: it.variant.duration,
+        quantity: it.quantity,
+        price_sar: unitSar,
+        line_total_sar: unitSar * it.quantity,
+      };
+    });
   }, [items]);
 
-  // إذا السلة فاضية رجّعه
+  // ✅ لا ترجع للسلة إذا خلصنا checkout أو أثناء الإرسال
   useEffect(() => {
+    if (checkoutCompleted || isSubmitting) return;
+
     if (items.length === 0) {
       toast({ title: "السلة فارغة", description: "ارجع للسلة وأضف منتجات قبل الدفع", variant: "destructive" });
       navigate("/cart");
     }
-  }, [items.length, navigate, toast]);
+  }, [items.length, checkoutCompleted, isSubmitting, navigate, toast]);
 
-  // Fetch store settings (IBAN) ✅ بدون cast يسبب error
+  // Fetch store settings (IBAN)
   useEffect(() => {
     let cancelled = false;
 
@@ -114,7 +122,6 @@ export default function CheckoutPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "البريد الإلكتروني غير صالح";
     if (!formData.paymentProofFile) newErrors.paymentProofFile = "تحميل إثبات الدفع مطلوب";
 
-    // ✅ تأكيد السلة مو فاضية
     if (items.length === 0) newErrors.cart = "السلة فارغة";
 
     setErrors(newErrors);
@@ -178,14 +185,22 @@ export default function CheckoutPage() {
     try {
       const orderId = crypto.randomUUID();
 
-      // 1) Upload proof
+      // Upload proof
       const paymentProofUrl = await uploadPaymentProof(orderId, formData.paymentProofFile!);
 
-      // 2) Amounts
-      const amount_sar = totalSar;                 // ✅ SAR
-      const amount = totalInSelectedCurrency;      // ✅ عملة العميل
+      // Amounts
+      const amount_sar = totalSar;
+      const amount = totalInSelectedCurrency;
 
-      // 3) Insert order (BenefitPay)
+      // ✅ plan_id لازم يكون NOT NULL (سريع: نخليها أول منتج بالسلة)
+      const firstProductId = items[0]?.product?.id;
+      if (!firstProductId) {
+        throw new Error("السلة فارغة");
+      }
+
+      const planName = `سلة مشتريات (${items.length} منتجات)`;
+
+      // Insert order
       const { error: orderError } = await supabase
         .from("benefitpay_orders" as any)
         .insert({
@@ -194,16 +209,14 @@ export default function CheckoutPage() {
           phone: formData.phone,
           email: formData.email,
 
-          // ✅ طلب متعدد منتجات
-          plan_id: null,
-          plan_name: `سلة مشتريات (${items.length} منتجات)`,
+          plan_id: firstProductId, // ✅ أهم تعديل (بدون null)
+          plan_name: planName,
 
           amount,
           amount_sar,
           currency_code: currency.code,
           currency_symbol: currency.symbol,
 
-          // ✅ نخزن تفاصيل السلة
           items: orderItems,
 
           benefitpay_ref: formData.benefitpayRef || null,
@@ -214,7 +227,7 @@ export default function CheckoutPage() {
 
       if (orderError) throw orderError;
 
-      // 4) Send email (يبين إجمالي السلة)
+      // Email
       const emailResponse = await fetch("/api/send-order-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -222,7 +235,7 @@ export default function CheckoutPage() {
           email: formData.email,
           fullName: formData.fullName,
           orderId,
-          planName: `سلة مشتريات (${items.length} منتجات)`,
+          planName,
           amount,
           currencyCode: currency.code,
           currencySymbol: currency.symbol,
@@ -233,7 +246,8 @@ export default function CheckoutPage() {
 
       toast({ title: "تم استقبال طلبك بنجاح", description: "سيتم التحقق من الدفع وإرسال التفاصيل قريباً" });
 
-      // ✅ تفريغ السلة بعد نجاح الطلب
+      // ✅ امنع redirect للسلة بعد clearCart
+      setCheckoutCompleted(true);
       clearCart();
 
       setTimeout(() => navigate("/"), 1200);
@@ -261,7 +275,7 @@ export default function CheckoutPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* IBAN + Copy + Optional QR */}
+          {/* IBAN */}
           <Card>
             <CardHeader>
               <CardTitle>بيانات التحويل</CardTitle>
@@ -323,21 +337,25 @@ export default function CheckoutPage() {
               <CardDescription>هذه المنتجات اللي راح تنحفظ في الطلب</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {items.map((it) => (
-                <div key={it.variant.id} className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{it.product.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {it.variant.duration} • الكمية: {it.quantity}
-                    </p>
+              {items.map((it) => {
+                const unit = Number(it.variant.salePrice ?? it.variant.price ?? 0);
+                return (
+                  <div
+                    key={it.variant.id}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{it.product.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {it.variant.duration} • الكمية: {it.quantity}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold gold-text">{formatPrice(unit * it.quantity)}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold gold-text">
-                      {formatPrice((Number(it.variant.salePrice ?? it.variant.price ?? 0)) * it.quantity)}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
 
               <div className="border-t border-border pt-3 flex items-center justify-between">
                 <span className="font-medium text-foreground">الإجمالي</span>
