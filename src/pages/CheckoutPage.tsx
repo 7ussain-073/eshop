@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, Upload, Check } from "lucide-react";
+import { AlertCircle, Upload, Check, Copy } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface DBVariant {
@@ -39,9 +39,11 @@ interface CheckoutFormData {
   paymentProofFile: File | null;
 }
 
-// اختياري: إذا تبغى تعرض بيانات التحويل للعميل
-const BENEFITPAY_IBAN = import.meta.env.VITE_BENEFITPAY_IBAN as string | undefined;
+// QR optional (نخليه مثل ما هو)
 const BENEFITPAY_QR_URL = import.meta.env.VITE_BENEFITPAY_QR_URL as string | undefined;
+
+// ✅ Type for store_settings row
+type StoreSettingsRow = { account_name: string | null; iban: string | null };
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -66,15 +68,62 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // IBAN from Supabase
+  const [paymentInfo, setPaymentInfo] = useState<{ accountName: string; iban: string }>({
+    accountName: "",
+    iban: "",
+  });
+  const [loadingPaymentInfo, setLoadingPaymentInfo] = useState(true);
+
+  // ✅ Fetch store settings (IBAN)
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      setLoadingPaymentInfo(true);
+
+      const { data, error } = await supabase
+        .from("store_settings" as any)
+        .select("account_name, iban")
+        .eq("id", 1)
+        .single();
+
+      if (cancelled) return;
+
+      if (error || !data) {
+        setPaymentInfo({ accountName: "", iban: "" });
+        setLoadingPaymentInfo(false);
+        return;
+      }
+
+      // ✅ Fix TS: cast through unknown first
+      const row = (data as unknown) as StoreSettingsRow;
+
+      setPaymentInfo({
+        accountName: row.account_name ?? "",
+        iban: row.iban ?? "",
+      });
+
+      setLoadingPaymentInfo(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Fetch products + variants from Supabase
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       setLoadingProducts(true);
+
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, description, image_url, status, product_variants(id, product_id, duration, price, sale_price, stock_status)")
+        .select(
+          "id, name, description, image_url, status, product_variants(id, product_id, duration, price, sale_price, stock_status)"
+        )
         .eq("status", "published")
         .order("created_at", { ascending: false });
 
@@ -92,7 +141,6 @@ export default function CheckoutPage() {
         return;
       }
 
-      // فلترة وترتيب بسيط للـ variants (المتوفر أولاً)
       const rows = (data || []) as any[];
       const mapped: DBProduct[] = rows.map((p) => ({
         id: p.id,
@@ -130,8 +178,7 @@ export default function CheckoutPage() {
   // السعر الأساسي دائماً SAR من DB
   const priceSar = useMemo(() => {
     if (!selectedVariant) return 0;
-    const v = selectedVariant;
-    const base = v.sale_price ?? v.price ?? 0;
+    const base = selectedVariant.sale_price ?? selectedVariant.price ?? 0;
     return Number(base) || 0;
   }, [selectedVariant]);
 
@@ -148,7 +195,6 @@ export default function CheckoutPage() {
 
     if (!formData.productId) newErrors.productId = "اختر المنتج";
     if (!formData.variantId) newErrors.variantId = "اختر المدة/السعر";
-
     if (!formData.paymentProofFile) newErrors.paymentProofFile = "تحميل إثبات الدفع مطلوب";
 
     setErrors(newErrors);
@@ -188,6 +234,15 @@ export default function CheckoutPage() {
     return publicUrl.publicUrl;
   };
 
+  const copyText = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "تم النسخ", description: `تم نسخ ${label}` });
+    } catch {
+      toast({ title: "خطأ", description: "تعذر النسخ، انسخ يدويًا", variant: "destructive" });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -218,8 +273,8 @@ export default function CheckoutPage() {
       const paymentProofUrl = await uploadPaymentProof(orderId, formData.paymentProofFile!);
 
       // 2) Amounts
-      const amount_sar = priceSar; // ✅ SAR دائماً من DB
-      const amount = amountInSelectedCurrency; // ✅ عملة العميل المختارة
+      const amount_sar = priceSar; // SAR دائماً من DB
+      const amount = amountInSelectedCurrency; // عملة العميل
 
       // 3) Insert order (BenefitPay)
       const { error: orderError } = await supabase
@@ -230,14 +285,11 @@ export default function CheckoutPage() {
           phone: formData.phone,
           email: formData.email,
 
-          // plan_id = product uuid
           plan_id: selectedProduct.id,
-          // plan_name = product + duration (أوضح للإدارة)
           plan_name: `${selectedProduct.name} - ${selectedVariant.duration}`,
 
-          // amounts + currency info
-          amount, // selected currency
-          amount_sar, // SAR
+          amount,
+          amount_sar,
           currency_code: currency.code,
           currency_symbol: currency.symbol,
 
@@ -249,7 +301,7 @@ export default function CheckoutPage() {
 
       if (orderError) throw orderError;
 
-      // 4) Send email (same selected currency shown to customer)
+      // 4) Send email
       const emailResponse = await fetch("/api/send-order-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -258,11 +310,9 @@ export default function CheckoutPage() {
           fullName: formData.fullName,
           orderId,
           planName: `${selectedProduct.name} - ${selectedVariant.duration}`,
-          amount, // ✅ send converted amount
+          amount,
           currencyCode: currency.code,
           currencySymbol: currency.symbol,
-          // (اختياري) لو تبي تعرض SAR في الإيميل لاحقاً:
-          // amountSar: amount_sar,
         }),
       });
 
@@ -297,35 +347,61 @@ export default function CheckoutPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Optional: Payment details (IBAN/QR) */}
-          {(BENEFITPAY_IBAN || BENEFITPAY_QR_URL) && (
-            <Card>
-              <CardHeader>
-                <CardTitle>بيانات التحويل</CardTitle>
-                <CardDescription>حوّل المبلغ ثم ارفع إثبات الدفع</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {BENEFITPAY_IBAN && (
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-foreground">IBAN</p>
-                    <p className="select-all rounded-lg border border-border bg-secondary px-3 py-2 font-mono text-sm text-foreground">
-                      {BENEFITPAY_IBAN}
-                    </p>
+          {/* IBAN + Copy + Optional QR */}
+          <Card>
+            <CardHeader>
+              <CardTitle>بيانات التحويل</CardTitle>
+              <CardDescription>حوّل المبلغ ثم ارفع إثبات الدفع</CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {loadingPaymentInfo ? (
+                <p className="text-sm text-muted-foreground">جاري تحميل بيانات التحويل...</p>
+              ) : !paymentInfo.iban ? (
+                <p className="text-sm text-destructive">
+                  لم يتم إعداد IBAN بعد. أضف IBAN في Supabase داخل جدول store_settings (id=1).
+                </p>
+              ) : (
+                <>
+                  {/* إذا ما تبي اسم الحساب نهائيًا احذف هذا البلوك */}
+                  {paymentInfo.accountName && (
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">اسم الحساب: </span>
+                      <span className="font-medium text-foreground">{paymentInfo.accountName}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-secondary/40 p-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">IBAN</p>
+                      <p className="font-mono text-sm text-foreground break-all">{paymentInfo.iban}</p>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => copyText(paymentInfo.iban, "رقم الآيبان")}
+                      className="shrink-0 flex items-center gap-2"
+                    >
+                      <Copy className="h-4 w-4" />
+                      نسخ
+                    </Button>
                   </div>
-                )}
-                {BENEFITPAY_QR_URL && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-foreground">QR Code</p>
-                    <img
-                      src={BENEFITPAY_QR_URL}
-                      alt="BenefitPay QR"
-                      className="max-w-[220px] rounded-lg border border-border bg-secondary p-2"
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                </>
+              )}
+
+              {BENEFITPAY_QR_URL && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">QR Code</p>
+                  <img
+                    src={BENEFITPAY_QR_URL}
+                    alt="BenefitPay QR"
+                    className="max-w-[220px] rounded-lg border border-border bg-secondary p-2"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* User Information */}
           <Card>
@@ -387,7 +463,6 @@ export default function CheckoutPage() {
                 <Select
                   value={formData.productId}
                   onValueChange={(value) => {
-                    // reset variant when product changes
                     setFormData((prev) => ({ ...prev, productId: value, variantId: "" }));
                     setErrors((prev) => ({ ...prev, productId: "", variantId: "" }));
                   }}
@@ -446,9 +521,7 @@ export default function CheckoutPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold gold-text">{formatPrice(priceSar)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        ({currency.code})
-                      </p>
+                      <p className="text-xs text-muted-foreground">({currency.code})</p>
                     </div>
                   </div>
                 </div>
@@ -555,9 +628,7 @@ export default function CheckoutPage() {
 
           <Alert>
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              سيتم التحقق من إثبات الدفع يدويًا، وستتلقى تفاصيل الاشتراك عبر البريد الإلكتروني
-            </AlertDescription>
+            <AlertDescription>سيتم التحقق من إثبات الدفع يدويًا، وستتلقى تفاصيل الاشتراك عبر البريد الإلكتروني</AlertDescription>
           </Alert>
 
           <Button type="submit" disabled={isSubmitting} className="w-full gold-gradient h-12 text-base font-bold">
