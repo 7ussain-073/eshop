@@ -1,189 +1,102 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, Upload, Check, Copy } from "lucide-react";
+import { AlertCircle, Upload, Check, Copy, ArrowLeft } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
-interface DBVariant {
-  id: string;
-  product_id: string;
-  duration: string;
-  price: number; // SAR
-  sale_price: number | null; // SAR
-  stock_status: "in_stock" | "out_of_stock" | string;
-}
-
-interface DBProduct {
-  id: string;
-  name: string;
-  description: string | null;
-  image_url: string | null;
-  status: "published" | "draft" | string;
-  product_variants: DBVariant[];
-}
 
 interface CheckoutFormData {
   fullName: string;
   phone: string;
   email: string;
-  productId: string;
-  variantId: string;
   benefitpayRef: string;
   paymentProofFile: File | null;
 }
 
-// QR optional (نخليه مثل ما هو)
-const BENEFITPAY_QR_URL = import.meta.env.VITE_BENEFITPAY_QR_URL as string | undefined;
-
-// ✅ Type for store_settings row
 type StoreSettingsRow = { account_name: string | null; iban: string | null };
+
+// (اختياري) QR لو تبي لاحقاً
+const BENEFITPAY_QR_URL = import.meta.env.VITE_BENEFITPAY_QR_URL as string | undefined;
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { formatPrice, convert, currency } = useCurrency();
+  const { items, totalPrice, clearCart } = useCart();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<CheckoutFormData>({
     fullName: "",
     phone: "",
     email: "",
-    productId: "",
-    variantId: "",
     benefitpayRef: "",
     paymentProofFile: null,
   });
-
-  const [products, setProducts] = useState<DBProduct[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
 
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // IBAN from Supabase
-  const [paymentInfo, setPaymentInfo] = useState<{ accountName: string; iban: string }>({
-    accountName: "",
-    iban: "",
-  });
+  const [paymentInfo, setPaymentInfo] = useState<{ accountName?: string; iban?: string }>({});
   const [loadingPaymentInfo, setLoadingPaymentInfo] = useState(true);
 
-  // ✅ Fetch store settings (IBAN)
+  // لو السلة فاضية رجعه للسلة
   useEffect(() => {
-    let cancelled = false;
+    if (!items || items.length === 0) navigate("/cart");
+  }, [items, navigate]);
 
-    (async () => {
-      setLoadingPaymentInfo(true);
+// Fetch store settings (IBAN)
+useEffect(() => {
+  let cancelled = false;
 
-      const { data, error } = await supabase
-        .from("store_settings" as any)
-        .select("account_name, iban")
-        .eq("id", 1)
-        .single();
+  (async () => {
+    setLoadingPaymentInfo(true);
 
-      if (cancelled) return;
+    const { data, error } = await supabase
+      .from("store_settings" as any)
+      .select("account_name, iban")
+      .eq("id", 1)
+      .maybeSingle(); // ✅ أفضل من single عشان ما يرمي خطأ لو مافي صف
 
-      if (error || !data) {
-        setPaymentInfo({ accountName: "", iban: "" });
-        setLoadingPaymentInfo(false);
-        return;
-      }
+    if (cancelled) return;
 
-      // ✅ Fix TS: cast through unknown first
-      const row = (data as unknown) as StoreSettingsRow;
-
-      setPaymentInfo({
-        accountName: row.account_name ?? "",
-        iban: row.iban ?? "",
-      });
-
+    if (error) {
+      console.error("Fetch store_settings error:", error);
+      setPaymentInfo({ accountName: "", iban: "" });
       setLoadingPaymentInfo(false);
-    })();
+      return;
+    }
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    // ✅ حل الإشكال: نعامل data كـ any هنا ونقرأ الحقول بأمان
+    const row: any = data;
 
-  // Fetch products + variants from Supabase
-  useEffect(() => {
-    let cancelled = false;
+    setPaymentInfo({
+      accountName: row?.account_name ?? "",
+      iban: row?.iban ?? "",
+    });
 
-    (async () => {
-      setLoadingProducts(true);
+    setLoadingPaymentInfo(false);
+  })();
 
-      const { data, error } = await supabase
-        .from("products")
-        .select(
-          "id, name, description, image_url, status, product_variants(id, product_id, duration, price, sale_price, stock_status)"
-        )
-        .eq("status", "published")
-        .order("created_at", { ascending: false });
+  return () => {
+    cancelled = true;
+  };
+}, []);
 
-      if (cancelled) return;
+  // ✅ نفس CartPage: subtotal = totalPrice, VAT 15%, total = 1.15
+  const subtotalSar = useMemo(() => Number(totalPrice || 0), [totalPrice]);
+  const vatSar = useMemo(() => subtotalSar * 0.15, [subtotalSar]);
+  const grandTotalSar = useMemo(() => subtotalSar * 1.15, [subtotalSar]);
 
-      if (error) {
-        console.error("Fetch products error:", error);
-        toast({
-          title: "خطأ",
-          description: "فشل تحميل المنتجات",
-          variant: "destructive",
-        });
-        setProducts([]);
-        setLoadingProducts(false);
-        return;
-      }
-
-      const rows = (data || []) as any[];
-      const mapped: DBProduct[] = rows.map((p) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description ?? null,
-        image_url: p.image_url ?? null,
-        status: p.status,
-        product_variants: (p.product_variants || []).slice().sort((a: DBVariant, b: DBVariant) => {
-          const ai = a.stock_status === "in_stock" ? 0 : 1;
-          const bi = b.stock_status === "in_stock" ? 0 : 1;
-          if (ai !== bi) return ai - bi;
-          return String(a.duration || "").localeCompare(String(b.duration || ""), "ar", { sensitivity: "base" });
-        }),
-      }));
-
-      setProducts(mapped);
-      setLoadingProducts(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [toast]);
-
-  const selectedProduct = useMemo(
-    () => products.find((p) => p.id === formData.productId),
-    [products, formData.productId]
-  );
-
-  const selectedVariant = useMemo(
-    () => selectedProduct?.product_variants?.find((v) => v.id === formData.variantId),
-    [selectedProduct, formData.variantId]
-  );
-
-  // السعر الأساسي دائماً SAR من DB
-  const priceSar = useMemo(() => {
-    if (!selectedVariant) return 0;
-    const base = selectedVariant.sale_price ?? selectedVariant.price ?? 0;
-    return Number(base) || 0;
-  }, [selectedVariant]);
-
-  // تحويل حسب عملة الموقع المختارة
-  const amountInSelectedCurrency = useMemo(() => convert(priceSar), [convert, priceSar]);
+  // تحويل حسب العملة المختارة
+  const grandTotalSelected = useMemo(() => convert(grandTotalSar), [convert, grandTotalSar]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -192,9 +105,6 @@ export default function CheckoutPage() {
     if (!formData.phone.trim()) newErrors.phone = "رقم الهاتف مطلوب";
     if (!formData.email.trim()) newErrors.email = "البريد الإلكتروني مطلوب";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "البريد الإلكتروني غير صالح";
-
-    if (!formData.productId) newErrors.productId = "اختر المنتج";
-    if (!formData.variantId) newErrors.variantId = "اختر المدة/السعر";
     if (!formData.paymentProofFile) newErrors.paymentProofFile = "تحميل إثبات الدفع مطلوب";
 
     setErrors(newErrors);
@@ -246,19 +156,15 @@ export default function CheckoutPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!items || items.length === 0) {
+      toast({ title: "السلة فارغة", description: "أضف منتجات للسلة أولاً", variant: "destructive" });
+      return;
+    }
+
     if (!validateForm()) {
       toast({
         title: "خطأ في النموذج",
         description: "يرجى ملء جميع الحقول المطلوبة",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!selectedProduct || !selectedVariant) {
-      toast({
-        title: "خطأ",
-        description: "المنتج/المدة غير صحيحة",
         variant: "destructive",
       });
       return;
@@ -272,11 +178,7 @@ export default function CheckoutPage() {
       // 1) Upload proof
       const paymentProofUrl = await uploadPaymentProof(orderId, formData.paymentProofFile!);
 
-      // 2) Amounts
-      const amount_sar = priceSar; // SAR دائماً من DB
-      const amount = amountInSelectedCurrency; // عملة العميل
-
-      // 3) Insert order (BenefitPay)
+      // 2) Insert order (BenefitPay) - إجمالي الطلب
       const { error: orderError } = await supabase
         .from("benefitpay_orders" as any)
         .insert({
@@ -285,11 +187,16 @@ export default function CheckoutPage() {
           phone: formData.phone,
           email: formData.email,
 
-          plan_id: selectedProduct.id,
-          plan_name: `${selectedProduct.name} - ${selectedVariant.duration}`,
+          // نخليها وصف عام + (اختياري) أول منتجين
+          plan_id: null,
+          plan_name:
+            items.length === 1
+              ? `${items[0].product.name} - ${items[0].variant.duration}`
+              : `طلب متعدد المنتجات (${items.length})`,
 
-          amount,
-          amount_sar,
+          // amounts + currency info
+          amount: grandTotalSelected,        // بعملة العميل
+          amount_sar: grandTotalSar,         // SAR للإدارة
           currency_code: currency.code,
           currency_symbol: currency.symbol,
 
@@ -301,7 +208,29 @@ export default function CheckoutPage() {
 
       if (orderError) throw orderError;
 
-      // 4) Send email
+      // 3) Insert order items
+      const itemsPayload = items.map((it: any) => {
+        const unitSar = Number(it.variant.salePrice ?? it.variant.price ?? 0) || 0;
+        const qty = Number(it.quantity || 1) || 1;
+        return {
+          order_id: orderId,
+          product_id: it.product.id ?? null,
+          variant_id: it.variant.id ?? null,
+          product_name: it.product.name ?? null,
+          variant_duration: it.variant.duration ?? null,
+          quantity: qty,
+          unit_price_sar: unitSar,
+          line_total_sar: unitSar * qty,
+        };
+      });
+
+      const { error: itemsError } = await supabase
+        .from("benefitpay_order_items" as any)
+        .insert(itemsPayload);
+
+      if (itemsError) throw itemsError;
+
+      // 4) Email (إجمالي الطلب)
       const emailResponse = await fetch("/api/send-order-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -309,8 +238,11 @@ export default function CheckoutPage() {
           email: formData.email,
           fullName: formData.fullName,
           orderId,
-          planName: `${selectedProduct.name} - ${selectedVariant.duration}`,
-          amount,
+          planName:
+            items.length === 1
+              ? `${items[0].product.name} - ${items[0].variant.duration}`
+              : `طلب متعدد المنتجات (${items.length})`,
+          amount: grandTotalSelected,
           currencyCode: currency.code,
           currencySymbol: currency.symbol,
         }),
@@ -322,10 +254,13 @@ export default function CheckoutPage() {
 
       toast({
         title: "تم استقبال طلبك بنجاح",
-        description: "سيتم التحقق من الدفع وإرسال تفاصيل الاشتراك قريباً",
+        description: "سيتم التحقق من الدفع وإرسال التفاصيل قريباً",
       });
 
-      setTimeout(() => navigate("/"), 1500);
+      // ✅ فضّي السلة بعد نجاح الطلب
+      clearCart();
+
+      setTimeout(() => navigate("/"), 1200);
     } catch (error: any) {
       console.error("Checkout error:", error);
       toast({
@@ -338,16 +273,27 @@ export default function CheckoutPage() {
     }
   };
 
+  if (!items || items.length === 0) {
+    return (
+      <div className="container flex min-h-[60vh] flex-col items-center justify-center text-center">
+        <h1 className="text-2xl font-bold text-foreground">سلة التسوق فارغة</h1>
+        <Link to="/cart" className="mt-4 inline-flex items-center gap-2 text-primary hover:underline">
+          <ArrowLeft className="h-4 w-4" /> الرجوع للسلة
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen py-6 md:py-12">
       <div className="container max-w-2xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground">الدفع عبر BenefitPay</h1>
-          <p className="mt-2 text-muted-foreground">أكمل بيانات طلبك وحمّل إثبات الدفع</p>
+          <p className="mt-2 text-muted-foreground">راجع طلبك ثم أكمل البيانات وارفع إثبات الدفع</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* IBAN + Copy + Optional QR */}
+          {/* IBAN + Copy */}
           <Card>
             <CardHeader>
               <CardTitle>بيانات التحويل</CardTitle>
@@ -363,7 +309,6 @@ export default function CheckoutPage() {
                 </p>
               ) : (
                 <>
-                  {/* إذا ما تبي اسم الحساب نهائيًا احذف هذا البلوك */}
                   {paymentInfo.accountName && (
                     <div className="text-sm">
                       <span className="text-muted-foreground">اسم الحساب: </span>
@@ -380,7 +325,7 @@ export default function CheckoutPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => copyText(paymentInfo.iban, "رقم الآيبان")}
+                      onClick={() => copyText(paymentInfo.iban || "", "رقم الآيبان")}
                       className="shrink-0 flex items-center gap-2"
                     >
                       <Copy className="h-4 w-4" />
@@ -400,6 +345,54 @@ export default function CheckoutPage() {
                   />
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Order Items (from Cart) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>محتويات الطلب</CardTitle>
+              <CardDescription>هذه العناصر مأخوذة من سلة التسوق</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {items.map((it: any) => {
+                const unitSar = Number(it.variant.salePrice ?? it.variant.price ?? 0) || 0;
+                return (
+                  <div key={it.variant.id} className="flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{it.product.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {it.variant.duration} • الكمية: {it.quantity}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold gold-text">{formatPrice(unitSar * it.quantity)}</p>
+                      <p className="text-[11px] text-muted-foreground">{Number(unitSar).toFixed(2)} ر.س/للوحدة</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          {/* Totals */}
+          <Card className="bg-secondary/50 border-primary/20">
+            <CardContent className="pt-6 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">المجموع الفرعي</span>
+                <span className="font-medium text-foreground">{formatPrice(subtotalSar)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">الضريبة (15%)</span>
+                <span className="font-medium text-foreground">{formatPrice(vatSar)}</span>
+              </div>
+              <div className="border-t border-border pt-2 flex justify-between">
+                <span className="font-bold text-foreground">الإجمالي</span>
+                <span className="text-lg font-bold gold-text">{formatPrice(grandTotalSar)}</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                سيتم حفظ الإجمالي بعملة العميل ({currency.code}) وكذلك بالريال (SAR) للإدارة.
+              </p>
             </CardContent>
           </Card>
 
@@ -447,103 +440,16 @@ export default function CheckoutPage() {
                   />
                   {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Product + Variant Selection */}
-          <Card>
-            <CardHeader>
-              <CardTitle>اختر الخطة</CardTitle>
-              <CardDescription>اختر المنتج ثم المدة/السعر</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>المنتج *</Label>
-                <Select
-                  value={formData.productId}
-                  onValueChange={(value) => {
-                    setFormData((prev) => ({ ...prev, productId: value, variantId: "" }));
-                    setErrors((prev) => ({ ...prev, productId: "", variantId: "" }));
-                  }}
-                >
-                  <SelectTrigger className={errors.productId ? "border-red-500" : ""}>
-                    <SelectValue placeholder={loadingProducts ? "جاري التحميل..." : "اختر المنتج"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.productId && <p className="mt-1 text-xs text-red-500">{errors.productId}</p>}
-              </div>
-
-              <div>
-                <Label>المدة / السعر *</Label>
-                <Select
-                  value={formData.variantId}
-                  onValueChange={(value) => {
-                    setFormData((prev) => ({ ...prev, variantId: value }));
-                    setErrors((prev) => ({ ...prev, variantId: "" }));
-                  }}
-                  disabled={!selectedProduct}
-                >
-                  <SelectTrigger className={errors.variantId ? "border-red-500" : ""}>
-                    <SelectValue placeholder={selectedProduct ? "اختر المدة" : "اختر المنتج أولاً"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(selectedProduct?.product_variants || []).map((v) => {
-                      const vPriceSar = Number(v.sale_price ?? v.price ?? 0) || 0;
-                      const label = `${v.duration} — ${formatPrice(vPriceSar)}${v.stock_status !== "in_stock" ? " (نفذ)" : ""}`;
-                      return (
-                        <SelectItem key={v.id} value={v.id} disabled={v.stock_status !== "in_stock"}>
-                          {label}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                {errors.variantId && <p className="mt-1 text-xs text-red-500">{errors.variantId}</p>}
-              </div>
-
-              {selectedProduct && selectedVariant && (
-                <div className="rounded-lg border border-border bg-secondary/50 p-4">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{selectedProduct.name}</p>
-                      <p className="text-xs text-muted-foreground">مدة: {selectedVariant.duration}</p>
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        السعر الأساسي: {Number(priceSar).toFixed(2)} ر.س
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold gold-text">{formatPrice(priceSar)}</p>
-                      <p className="text-xs text-muted-foreground">({currency.code})</p>
-                    </div>
-                  </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="benefitPayRef">رقم إحالة BenefitPay (اختياري)</Label>
+                  <Input
+                    id="benefitPayRef"
+                    placeholder="مثال: BP123456789"
+                    value={formData.benefitpayRef}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, benefitpayRef: e.target.value }))}
+                  />
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* BenefitPay Reference */}
-          <Card>
-            <CardHeader>
-              <CardTitle>معلومات الدفع</CardTitle>
-              <CardDescription>أدخل رقم الإحالة (اختياري)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Label htmlFor="benefitPayRef">رقم إحالة BenefitPay (اختياري)</Label>
-                <Input
-                  id="benefitPayRef"
-                  placeholder="مثال: BP123456789"
-                  value={formData.benefitpayRef}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, benefitpayRef: e.target.value }))}
-                />
               </div>
             </CardContent>
           </Card>
@@ -601,39 +507,22 @@ export default function CheckoutPage() {
             </CardContent>
           </Card>
 
-          {/* Summary */}
-          {selectedProduct && selectedVariant && (
-            <Card className="bg-secondary/50 border-primary/20">
-              <CardContent className="pt-6">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">الخطة:</span>
-                    <span className="font-medium text-foreground">{selectedProduct.name}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">المدة:</span>
-                    <span className="font-medium text-foreground">{selectedVariant.duration}</span>
-                  </div>
-                  <div className="border-t border-border pt-2 flex justify-between">
-                    <span className="font-medium text-foreground">الإجمالي:</span>
-                    <span className="text-lg font-bold gold-text">{formatPrice(priceSar)}</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    سيتم حفظ الطلب بعملة العميل ({currency.code}) وكذلك بالريال (SAR) للإدارة.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           <Alert>
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>سيتم التحقق من إثبات الدفع يدويًا، وستتلقى تفاصيل الاشتراك عبر البريد الإلكتروني</AlertDescription>
+            <AlertDescription>
+              سيتم التحقق من إثبات الدفع يدويًا، وستتلقى تفاصيل الطلب عبر البريد الإلكتروني
+            </AlertDescription>
           </Alert>
 
           <Button type="submit" disabled={isSubmitting} className="w-full gold-gradient h-12 text-base font-bold">
             {isSubmitting ? "جاري معالجة الطلب..." : "تم الدفع / إرسال الطلب"}
           </Button>
+
+          <div className="text-center">
+            <Link to="/cart" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary">
+              <ArrowLeft className="h-4 w-4" /> رجوع للسلة
+            </Link>
+          </div>
         </form>
       </div>
     </div>
