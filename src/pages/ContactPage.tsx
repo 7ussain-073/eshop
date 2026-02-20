@@ -21,15 +21,15 @@ export default function ContactPage() {
             {
               icon: MessageCircle,
               label: "واتساب",
-              value: "+966 50 000 0000",
-              href: "https://wa.me/966500000000",
+              value: "+973 0000 0000",
+              href: "https://wa.me/97300000000",
               colorClass: "hover:border-whatsapp hover:bg-whatsapp/10",
             },
             {
               icon: Mail,
               label: "البريد الإلكتروني",
-              value: "support@a2hstore.com",
-              href: "mailto:support@a2hstore.com",
+              value: "a2h.matjar@gmail.com",
+              href: "mailto:a2h.matjar@gmail.com",
               colorClass: "hover:border-primary hover:bg-primary/10",
             },
             {
@@ -49,15 +49,15 @@ export default function ContactPage() {
             {
               icon: Send,
               label: "تيليجرام",
-              value: "@spongestore",
+              value: "@a2h.store",
               href: "#",
               colorClass: "hover:border-primary hover:bg-primary/10",
             },
             {
               icon: Phone,
               label: "هاتف",
-              value: "+966 50 000 0000",
-              href: "tel:+966500000000",
+              value: "+973 0000 0000",
+              href: "tel:+973 00000000",
               colorClass: "hover:border-success hover:bg-success/10",
             },
           ].map(({ icon: Icon, label, value, href, colorClass }) => (

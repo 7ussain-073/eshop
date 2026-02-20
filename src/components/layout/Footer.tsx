@@ -114,14 +114,14 @@ export default function Footer() {
               </a>
             </div>
             <div className="mt-4 text-sm text-muted-foreground">
-              <p>📧 support@a2hstore.com</p>
-              <p className="mt-1">📱 +966 50 000 0000</p>
+              <p>📧 a2h.matjar@gmail.com</p>
+              <p className="mt-1">📱 +973 </p>
             </div>
           </div>
         </div>
 
         <div className="mt-10 border-t border-border pt-6 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Sponge Store. جميع الحقوق محفوظة.
+          © {new Date().getFullYear()} A2H Store. جميع الحقوق محفوظة.
         </div>
       </div>
     </footer>

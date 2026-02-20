@@ -30,7 +30,7 @@ export default function LoginPage() {
       if (error) {
         toast({ title: "خطأ في إنشاء الحساب", description: error.message, variant: "destructive" });
       } else {
-        toast({ title: "تم إنشاء الحساب", description: "تحقق من بريدك الإلكتروني لتفعيل الحساب" });
+        toast({ title: "تم إنشاء الحساب", description: "تم إنشاء الحساب بنجاح، يمكنك تسجيل الدخول الآن" });
       }
     }
     setLoading(false);

@@ -21,14 +21,14 @@ interface CheckoutFormData {
 
 type StoreSettingsRow = { account_name: string | null; iban: string | null };
 
-// (اختياري) QR لو تبي لاحقاً
+// QR optional
 const BENEFITPAY_QR_URL = import.meta.env.VITE_BENEFITPAY_QR_URL as string | undefined;
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { formatPrice, convert, currency } = useCurrency();
-  const { items, totalPrice, clearCart } = useCart();
+  const { items, totalPrice, clearCart } = useCart(); // ✅ ناخذ السلة مباشرة
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<CheckoutFormData>({
@@ -44,59 +44,66 @@ export default function CheckoutPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // IBAN from Supabase
-  const [paymentInfo, setPaymentInfo] = useState<{ accountName?: string; iban?: string }>({});
+  const [paymentInfo, setPaymentInfo] = useState<{ accountName: string; iban: string }>({ accountName: "", iban: "" });
   const [loadingPaymentInfo, setLoadingPaymentInfo] = useState(true);
 
-  // لو السلة فاضية رجعه للسلة
+  // ✅ إجمالي السلة بالـ SAR (حسب الـ CartContext عندك totalPrice مفروض SAR)
+  const totalSar = useMemo(() => Number(totalPrice) || 0, [totalPrice]);
+  const totalInSelectedCurrency = useMemo(() => convert(totalSar), [convert, totalSar]);
+
+  // ✅ عناصر الطلب اللي بنخزنها في items jsonb
+  const orderItems = useMemo(() => {
+    return items.map((it) => ({
+      product_id: it.product.id,
+      product_name: it.product.name,
+      variant_id: it.variant.id,
+      duration: it.variant.duration,
+      quantity: it.quantity,
+      price_sar: Number(it.variant.salePrice ?? it.variant.price ?? 0),
+      line_total_sar: Number(it.variant.salePrice ?? it.variant.price ?? 0) * it.quantity,
+    }));
+  }, [items]);
+
+  // إذا السلة فاضية رجّعه
   useEffect(() => {
-    if (!items || items.length === 0) navigate("/cart");
-  }, [items, navigate]);
-
-// Fetch store settings (IBAN)
-useEffect(() => {
-  let cancelled = false;
-
-  (async () => {
-    setLoadingPaymentInfo(true);
-
-    const { data, error } = await supabase
-      .from("store_settings" as any)
-      .select("account_name, iban")
-      .eq("id", 1)
-      .maybeSingle(); // ✅ أفضل من single عشان ما يرمي خطأ لو مافي صف
-
-    if (cancelled) return;
-
-    if (error) {
-      console.error("Fetch store_settings error:", error);
-      setPaymentInfo({ accountName: "", iban: "" });
-      setLoadingPaymentInfo(false);
-      return;
+    if (items.length === 0) {
+      toast({ title: "السلة فارغة", description: "ارجع للسلة وأضف منتجات قبل الدفع", variant: "destructive" });
+      navigate("/cart");
     }
+  }, [items.length, navigate, toast]);
 
-    // ✅ حل الإشكال: نعامل data كـ any هنا ونقرأ الحقول بأمان
-    const row: any = data;
+  // Fetch store settings (IBAN) ✅ بدون cast يسبب error
+  useEffect(() => {
+    let cancelled = false;
 
-    setPaymentInfo({
-      accountName: row?.account_name ?? "",
-      iban: row?.iban ?? "",
-    });
+    (async () => {
+      setLoadingPaymentInfo(true);
 
-    setLoadingPaymentInfo(false);
-  })();
+      const res = await supabase
+        .from("store_settings" as any)
+        .select("account_name, iban")
+        .eq("id", 1)
+        .single();
 
-  return () => {
-    cancelled = true;
-  };
-}, []);
+      if (cancelled) return;
 
-  // ✅ نفس CartPage: subtotal = totalPrice, VAT 15%, total = 1.15
-  const subtotalSar = useMemo(() => Number(totalPrice || 0), [totalPrice]);
-  const vatSar = useMemo(() => subtotalSar * 0.15, [subtotalSar]);
-  const grandTotalSar = useMemo(() => subtotalSar * 1.15, [subtotalSar]);
+      if (!res.error && res.data) {
+        const row = res.data as unknown as StoreSettingsRow;
+        setPaymentInfo({
+          accountName: row?.account_name ?? "",
+          iban: row?.iban ?? "",
+        });
+      } else {
+        setPaymentInfo({ accountName: "", iban: "" });
+      }
 
-  // تحويل حسب العملة المختارة
-  const grandTotalSelected = useMemo(() => convert(grandTotalSar), [convert, grandTotalSar]);
+      setLoadingPaymentInfo(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -106,6 +113,9 @@ useEffect(() => {
     if (!formData.email.trim()) newErrors.email = "البريد الإلكتروني مطلوب";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "البريد الإلكتروني غير صالح";
     if (!formData.paymentProofFile) newErrors.paymentProofFile = "تحميل إثبات الدفع مطلوب";
+
+    // ✅ تأكيد السلة مو فاضية
+    if (items.length === 0) newErrors.cart = "السلة فارغة";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -156,19 +166,12 @@ useEffect(() => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!items || items.length === 0) {
-      toast({ title: "السلة فارغة", description: "أضف منتجات للسلة أولاً", variant: "destructive" });
+    if (!validateForm()) {
+      toast({ title: "خطأ في النموذج", description: "يرجى ملء جميع الحقول المطلوبة", variant: "destructive" });
       return;
     }
 
-    if (!validateForm()) {
-      toast({
-        title: "خطأ في النموذج",
-        description: "يرجى ملء جميع الحقول المطلوبة",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (items.length === 0) return;
 
     setIsSubmitting(true);
 
@@ -178,7 +181,11 @@ useEffect(() => {
       // 1) Upload proof
       const paymentProofUrl = await uploadPaymentProof(orderId, formData.paymentProofFile!);
 
-      // 2) Insert order (BenefitPay) - إجمالي الطلب
+      // 2) Amounts
+      const amount_sar = totalSar;                 // ✅ SAR
+      const amount = totalInSelectedCurrency;      // ✅ عملة العميل
+
+      // 3) Insert order (BenefitPay)
       const { error: orderError } = await supabase
         .from("benefitpay_orders" as any)
         .insert({
@@ -187,18 +194,17 @@ useEffect(() => {
           phone: formData.phone,
           email: formData.email,
 
-          // نخليها وصف عام + (اختياري) أول منتجين
+          // ✅ طلب متعدد منتجات
           plan_id: null,
-          plan_name:
-            items.length === 1
-              ? `${items[0].product.name} - ${items[0].variant.duration}`
-              : `طلب متعدد المنتجات (${items.length})`,
+          plan_name: `سلة مشتريات (${items.length} منتجات)`,
 
-          // amounts + currency info
-          amount: grandTotalSelected,        // بعملة العميل
-          amount_sar: grandTotalSar,         // SAR للإدارة
+          amount,
+          amount_sar,
           currency_code: currency.code,
           currency_symbol: currency.symbol,
+
+          // ✅ نخزن تفاصيل السلة
+          items: orderItems,
 
           benefitpay_ref: formData.benefitpayRef || null,
           payment_proof_url: paymentProofUrl,
@@ -208,29 +214,7 @@ useEffect(() => {
 
       if (orderError) throw orderError;
 
-      // 3) Insert order items
-      const itemsPayload = items.map((it: any) => {
-        const unitSar = Number(it.variant.salePrice ?? it.variant.price ?? 0) || 0;
-        const qty = Number(it.quantity || 1) || 1;
-        return {
-          order_id: orderId,
-          product_id: it.product.id ?? null,
-          variant_id: it.variant.id ?? null,
-          product_name: it.product.name ?? null,
-          variant_duration: it.variant.duration ?? null,
-          quantity: qty,
-          unit_price_sar: unitSar,
-          line_total_sar: unitSar * qty,
-        };
-      });
-
-      const { error: itemsError } = await supabase
-        .from("benefitpay_order_items" as any)
-        .insert(itemsPayload);
-
-      if (itemsError) throw itemsError;
-
-      // 4) Email (إجمالي الطلب)
+      // 4) Send email (يبين إجمالي السلة)
       const emailResponse = await fetch("/api/send-order-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -238,62 +222,46 @@ useEffect(() => {
           email: formData.email,
           fullName: formData.fullName,
           orderId,
-          planName:
-            items.length === 1
-              ? `${items[0].product.name} - ${items[0].variant.duration}`
-              : `طلب متعدد المنتجات (${items.length})`,
-          amount: grandTotalSelected,
+          planName: `سلة مشتريات (${items.length} منتجات)`,
+          amount,
           currencyCode: currency.code,
           currencySymbol: currency.symbol,
         }),
       });
 
-      if (!emailResponse.ok) {
-        console.error("Email sending failed, but order was created");
-      }
+      if (!emailResponse.ok) console.error("Email sending failed, but order was created");
 
-      toast({
-        title: "تم استقبال طلبك بنجاح",
-        description: "سيتم التحقق من الدفع وإرسال التفاصيل قريباً",
-      });
+      toast({ title: "تم استقبال طلبك بنجاح", description: "سيتم التحقق من الدفع وإرسال التفاصيل قريباً" });
 
-      // ✅ فضّي السلة بعد نجاح الطلب
+      // ✅ تفريغ السلة بعد نجاح الطلب
       clearCart();
 
       setTimeout(() => navigate("/"), 1200);
     } catch (error: any) {
       console.error("Checkout error:", error);
-      toast({
-        title: "خطأ",
-        description: error.message || "فشل إنشاء الطلب",
-        variant: "destructive",
-      });
+      toast({ title: "خطأ", description: error.message || "فشل إنشاء الطلب", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  if (!items || items.length === 0) {
-    return (
-      <div className="container flex min-h-[60vh] flex-col items-center justify-center text-center">
-        <h1 className="text-2xl font-bold text-foreground">سلة التسوق فارغة</h1>
-        <Link to="/cart" className="mt-4 inline-flex items-center gap-2 text-primary hover:underline">
-          <ArrowLeft className="h-4 w-4" /> الرجوع للسلة
-        </Link>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen py-6 md:py-12">
       <div className="container max-w-2xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground">الدفع عبر BenefitPay</h1>
-          <p className="mt-2 text-muted-foreground">راجع طلبك ثم أكمل البيانات وارفع إثبات الدفع</p>
+          <p className="mt-2 text-muted-foreground">راجع سلتك ثم ارفع إثبات الدفع</p>
+
+          <div className="mt-3">
+            <Link to="/cart" className="inline-flex items-center gap-2 text-sm text-primary hover:underline">
+              <ArrowLeft className="h-4 w-4" />
+              رجوع للسلة
+            </Link>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* IBAN + Copy */}
+          {/* IBAN + Copy + Optional QR */}
           <Card>
             <CardHeader>
               <CardTitle>بيانات التحويل</CardTitle>
@@ -325,7 +293,7 @@ useEffect(() => {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => copyText(paymentInfo.iban || "", "رقم الآيبان")}
+                      onClick={() => copyText(paymentInfo.iban, "رقم الآيبان")}
                       className="shrink-0 flex items-center gap-2"
                     >
                       <Copy className="h-4 w-4" />
@@ -348,55 +316,43 @@ useEffect(() => {
             </CardContent>
           </Card>
 
-          {/* Order Items (from Cart) */}
-          <Card>
+          {/* Cart Summary */}
+          <Card className="bg-secondary/30">
             <CardHeader>
-              <CardTitle>محتويات الطلب</CardTitle>
-              <CardDescription>هذه العناصر مأخوذة من سلة التسوق</CardDescription>
+              <CardTitle>ملخص السلة</CardTitle>
+              <CardDescription>هذه المنتجات اللي راح تنحفظ في الطلب</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {items.map((it: any) => {
-                const unitSar = Number(it.variant.salePrice ?? it.variant.price ?? 0) || 0;
-                return (
-                  <div key={it.variant.id} className="flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{it.product.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {it.variant.duration} • الكمية: {it.quantity}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold gold-text">{formatPrice(unitSar * it.quantity)}</p>
-                      <p className="text-[11px] text-muted-foreground">{Number(unitSar).toFixed(2)} ر.س/للوحدة</p>
-                    </div>
+              {items.map((it) => (
+                <div key={it.variant.id} className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{it.product.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {it.variant.duration} • الكمية: {it.quantity}
+                    </p>
                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
+                  <div className="text-right">
+                    <p className="text-sm font-bold gold-text">
+                      {formatPrice((Number(it.variant.salePrice ?? it.variant.price ?? 0)) * it.quantity)}
+                    </p>
+                  </div>
+                </div>
+              ))}
 
-          {/* Totals */}
-          <Card className="bg-secondary/50 border-primary/20">
-            <CardContent className="pt-6 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">المجموع الفرعي</span>
-                <span className="font-medium text-foreground">{formatPrice(subtotalSar)}</span>
+              <div className="border-t border-border pt-3 flex items-center justify-between">
+                <span className="font-medium text-foreground">الإجمالي</span>
+                <span className="text-lg font-bold gold-text">{formatPrice(totalSar)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">الضريبة (15%)</span>
-                <span className="font-medium text-foreground">{formatPrice(vatSar)}</span>
-              </div>
-              <div className="border-t border-border pt-2 flex justify-between">
-                <span className="font-bold text-foreground">الإجمالي</span>
-                <span className="text-lg font-bold gold-text">{formatPrice(grandTotalSar)}</span>
-              </div>
+
               <p className="text-[11px] text-muted-foreground">
                 سيتم حفظ الإجمالي بعملة العميل ({currency.code}) وكذلك بالريال (SAR) للإدارة.
               </p>
+
+              {errors.cart && <p className="text-xs text-red-500">{errors.cart}</p>}
             </CardContent>
           </Card>
 
-          {/* User Information */}
+          {/* User Info */}
           <Card>
             <CardHeader>
               <CardTitle>بيانات العميل</CardTitle>
@@ -408,7 +364,6 @@ useEffect(() => {
                   <Label htmlFor="fullName">الاسم الكامل *</Label>
                   <Input
                     id="fullName"
-                    placeholder="أحمد محمد"
                     value={formData.fullName}
                     onChange={(e) => setFormData((prev) => ({ ...prev, fullName: e.target.value }))}
                     className={errors.fullName ? "border-red-500" : ""}
@@ -420,7 +375,6 @@ useEffect(() => {
                   <Label htmlFor="phone">رقم الهاتف *</Label>
                   <Input
                     id="phone"
-                    placeholder="+966501234567"
                     value={formData.phone}
                     onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
                     className={errors.phone ? "border-red-500" : ""}
@@ -433,28 +387,35 @@ useEffect(() => {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="example@mail.com"
                     value={formData.email}
                     onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                     className={errors.email ? "border-red-500" : ""}
                   />
                   {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
                 </div>
-
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="benefitPayRef">رقم إحالة BenefitPay (اختياري)</Label>
-                  <Input
-                    id="benefitPayRef"
-                    placeholder="مثال: BP123456789"
-                    value={formData.benefitpayRef}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, benefitpayRef: e.target.value }))}
-                  />
-                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Payment Proof Upload */}
+          {/* BenefitPay Ref */}
+          <Card>
+            <CardHeader>
+              <CardTitle>معلومات الدفع</CardTitle>
+              <CardDescription>رقم الإحالة (اختياري)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label htmlFor="benefitPayRef">رقم إحالة BenefitPay (اختياري)</Label>
+                <Input
+                  id="benefitPayRef"
+                  value={formData.benefitpayRef}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, benefitpayRef: e.target.value }))}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Payment Proof */}
           <Card>
             <CardHeader>
               <CardTitle>إثبات الدفع</CardTitle>
@@ -509,20 +470,12 @@ useEffect(() => {
 
           <Alert>
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              سيتم التحقق من إثبات الدفع يدويًا، وستتلقى تفاصيل الطلب عبر البريد الإلكتروني
-            </AlertDescription>
+            <AlertDescription>سيتم التحقق من إثبات الدفع يدويًا، وستتلقى تفاصيل الطلب عبر البريد الإلكتروني</AlertDescription>
           </Alert>
 
           <Button type="submit" disabled={isSubmitting} className="w-full gold-gradient h-12 text-base font-bold">
             {isSubmitting ? "جاري معالجة الطلب..." : "تم الدفع / إرسال الطلب"}
           </Button>
-
-          <div className="text-center">
-            <Link to="/cart" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary">
-              <ArrowLeft className="h-4 w-4" /> رجوع للسلة
-            </Link>
-          </div>
         </form>
       </div>
     </div>

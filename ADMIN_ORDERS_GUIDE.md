@@ -69,7 +69,7 @@ After approval, you must manually deliver the subscription:
 |-------|---------|-------|
 | رقم الطلب (Order ID) | order-1707xxx | Unique identifier |
 | اسم العميل (Customer Name) | أحمد محمد | Full name entered |
-| الهاتف (Phone) | +966501234567 | Customer contact |
+| الهاتف (Phone) | +973 501234567 | Customer contact |
 | البريد (Email) | ahmed@example.com | Confirmation sent here |
 | الخطة (Plan) | Netflix Premium | Product name |
 | المبلغ (Amount) | 29.99 BHD | In selected currency |
