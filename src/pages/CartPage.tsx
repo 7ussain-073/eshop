@@ -9,7 +9,6 @@ export default function CartPage() {
   const { formatPrice } = useCurrency();
   const navigate = useNavigate();
 
-
   if (items.length === 0) {
     return (
       <div className="container flex min-h-[60vh] flex-col items-center justify-center text-center">
@@ -57,10 +56,12 @@ export default function CartPage() {
                       {item.product.name}
                     </Link>
                     <span className="text-xs text-muted-foreground">{item.variant.duration}</span>
+
                     <div className="mt-auto flex items-center justify-between pt-3">
                       <span className="text-lg font-bold text-primary">
                         {formatPrice((item.variant.salePrice || item.variant.price) * item.quantity)}
                       </span>
+
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => updateQuantity(item.variant.id, item.quantity - 1)}
@@ -68,15 +69,16 @@ export default function CartPage() {
                         >
                           <Minus className="h-4 w-4" />
                         </button>
-                        <span className="w-8 text-center font-medium text-foreground">
-                          {item.quantity}
-                        </span>
+
+                        <span className="w-8 text-center font-medium text-foreground">{item.quantity}</span>
+
                         <button
                           onClick={() => updateQuantity(item.variant.id, item.quantity + 1)}
                           className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-foreground hover:bg-muted"
                         >
                           <Plus className="h-4 w-4" />
                         </button>
+
                         <button
                           onClick={() => removeItem(item.variant.id)}
                           className="mr-2 flex h-8 w-8 items-center justify-center rounded-lg text-destructive hover:bg-destructive/10"
@@ -89,10 +91,8 @@ export default function CartPage() {
                 </motion.div>
               ))}
             </div>
-            <button
-              onClick={clearCart}
-              className="mt-4 text-sm text-destructive hover:underline"
-            >
+
+            <button onClick={clearCart} className="mt-4 text-sm text-destructive hover:underline">
               تفريغ السلة
             </button>
           </div>
@@ -101,27 +101,31 @@ export default function CartPage() {
           <div>
             <div className="sticky top-32 rounded-xl border border-border bg-card p-6">
               <h2 className="mb-4 text-lg font-bold text-foreground">ملخص الطلب</h2>
+
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between text-muted-foreground">
-                  <span>المجموع الفرعي</span>
+                  <span>المجموع</span>
                   <span>{formatPrice(totalPrice)}</span>
                 </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>الضريبة (15%)</span>
-                  <span>{formatPrice(totalPrice * 0.15)}</span>
-                </div>
+
                 <div className="border-t border-border pt-3">
                   <div className="flex justify-between">
                     <span className="font-bold text-foreground">الإجمالي</span>
                     <span className="text-xl font-bold text-primary">
-                      {formatPrice(totalPrice * 1.15)}
+                      {formatPrice(totalPrice)}
                     </span>
                   </div>
                 </div>
               </div>
-              <button type="button"onClick={() => navigate("/checkout")} className="gold-gradient mt-6 w-full rounded-xl py-3 text-sm font-bold text-primary-foreground transition-transform hover:scale-[1.02]">
+
+              <button
+                type="button"
+                onClick={() => navigate("/checkout")}
+                className="gold-gradient mt-6 w-full rounded-xl py-3 text-sm font-bold text-primary-foreground transition-transform hover:scale-[1.02]"
+              >
                 إتمام الشراء
               </button>
+
               <p className="mt-3 text-center text-[11px] text-muted-foreground">
                 يتطلب إتمام الشراء تسجيل الدخول
               </p>
