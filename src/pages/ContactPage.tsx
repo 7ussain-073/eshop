@@ -19,13 +19,6 @@ export default function ContactPage() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           {[
             {
-              icon: MessageCircle,
-              label: "واتساب",
-              value: "+973 0000 0000",
-              href: "https://wa.me/97300000000",
-              colorClass: "hover:border-whatsapp hover:bg-whatsapp/10",
-            },
-            {
               icon: Mail,
               label: "البريد الإلكتروني",
               value: "a2h.matjar@gmail.com",
@@ -35,30 +28,16 @@ export default function ContactPage() {
             {
               icon: Instagram,
               label: "انستجرام",
-              value: "@a2hstore",
+              value: "@mtjr_a2h",
               href: "#",
               colorClass: "hover:border-pink-500 hover:bg-pink-500/10",
             },
             {
-              icon: Youtube,
-              label: "يوتيوب",
-              value: "A2h Store",
-              href: "#",
-              colorClass: "hover:border-destructive hover:bg-destructive/10",
-            },
-            {
               icon: Send,
               label: "تيليجرام",
-              value: "@a2h.store",
+              value: "@mtjr_a2h",
               href: "#",
               colorClass: "hover:border-primary hover:bg-primary/10",
-            },
-            {
-              icon: Phone,
-              label: "هاتف",
-              value: "+973 0000 0000",
-              href: "tel:+973 00000000",
-              colorClass: "hover:border-success hover:bg-success/10",
             },
           ].map(({ icon: Icon, label, value, href, colorClass }) => (
             <a
