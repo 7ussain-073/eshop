@@ -198,28 +198,157 @@ export default function AdminSections() {
       )}
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-secondary/50">
-              <th className="px-4 py-3 text-right font-medium text-muted-foreground">الاسم</th>
-              <th className="px-4 py-3 text-right font-medium text-muted-foreground">slug</th>
-              <th className="px-4 py-3 text-right font-medium text-muted-foreground">إجراءات</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map((c) => (
-              <tr key={c.id} className="border-b border-border last:border-0">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    {c.image_url && <img src={c.image_url} alt="" className="h-10 w-10 rounded-lg object-cover" />}
-                    <div>
+        {/* Desktop Table */}
+        <div className="hidden md:block">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-secondary/50">
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">الاسم</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">slug</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categories.map((c) => (
+                <tr key={c.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {c.image_url && <img src={c.image_url} alt="" className="h-10 w-10 rounded-lg object-cover" />}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          {inlineEditingId === c.id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                value={inlineEditingName}
+                                onChange={(e) => setInlineEditingName(e.target.value)}
+                                className="rounded-lg border border-border bg-secondary px-2 py-1 text-sm text-foreground"
+                              />
+                              <button
+                                onClick={async () => {
+                                  if (!inlineEditingId) return;
+                                  if (!inlineEditingName.trim()) return toast({ title: 'أدخل اسمًا صالحًا' });
+                                  setSavingInlineId(inlineEditingId);
+                                  try {
+                                    const { error } = await supabase.from('categories').update({ name: inlineEditingName.trim() }).eq('id', inlineEditingId);
+                                    if (error) throw error;
+                                    setCategories((prev) => prev.map((cat) => (cat.id === inlineEditingId ? { ...cat, name: inlineEditingName.trim() } : cat)));
+                                    toast({ title: 'تم تحديث اسم القسم' });
+                                    setInlineEditingId(null);
+                                    setInlineEditingName('');
+                                  } catch (err: any) {
+                                    toast({ title: 'خطأ عند حفظ الاسم', description: String(err.message || err), variant: 'destructive' });
+                                  } finally {
+                                    setSavingInlineId(null);
+                                  }
+                                }}
+                                disabled={savingInlineId === c.id}
+                                className="rounded-lg px-2 py-1 text-sm border border-border text-primary/80 bg-primary/5 hover:bg-primary/10 disabled:opacity-50"
+                              >
+                                {savingInlineId === c.id ? 'جاري...' : <Check className="h-4 w-4" />}
+                              </button>
+                              <button onClick={() => { setInlineEditingId(null); setInlineEditingName(''); }} className="rounded-lg px-2 py-1 text-sm border border-border text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div className="font-medium text-foreground">{c.name}</div>
+                              {c.hidden ? (
+                                <span className="rounded-full bg-yellow-100 text-yellow-700 px-2 py-0.5 text-xs">{hiddenSupported ? 'مخفي' : 'مخفي (محلي)'}</span>
+                              ) : null}
+                              <button onClick={() => { setInlineEditingId(c.id); setInlineEditingName(c.name || ''); }} className="ml-2 rounded-md p-1 text-muted-foreground hover:bg-secondary"><Edit className="h-4 w-4" /></button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{c.id}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">{c.slug}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1 items-center">
+                      <button
+                        onClick={async () => {
+                          if (updatingIds.includes(c.id)) return;
+
+                          // client-only toggle when DB doesn't support `hidden`
+                          if (!hiddenSupported) {
+                            const newHidden = !Boolean(c.hidden);
+                            setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: newHidden } : cat)));
+
+                            // persist client-only hidden state so storefront UI (useCategories)
+                            // will filter this category out immediately for this browser.
+                            const ids = getLocalHiddenCategories();
+                            const next = newHidden ? Array.from(new Set([...ids, c.id])) : ids.filter((id) => id !== c.id);
+                            setLocalHiddenCategories(next);
+
+                            toast({ title: newHidden ? 'تم إخفاء القسم محليًا' : 'تم إظهار القسم محليًا' });
+                            return;
+                          }
+
+                          // DB-backed optimistic update (existing flow)
+                          const originalHidden = !!c.hidden;
+                          const newHidden = !originalHidden;
+
+                          setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: newHidden } : cat)));
+                          setUpdatingIds((prev) => [...prev, c.id]);
+
+                          try {
+                            const { error } = await supabase.from("categories").update({ hidden: newHidden } as any).eq("id", c.id);
+                            if (error) {
+                              setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: originalHidden } : cat)));
+                              toast({ title: "خطأ", description: error.message, variant: "destructive" });
+                            } else {
+                              toast({ title: newHidden ? 'تم إخفاء القسم' : 'تم إظهار القسم' });
+                            }
+                          } catch (err: any) {
+                            setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: originalHidden } : cat)));
+                            toast({ title: "خطأ عند التعديل", description: String(err), variant: "destructive" });
+                          } finally {
+                            setUpdatingIds((prev) => prev.filter((id) => id !== c.id));
+                          }
+                        }}
+                        disabled={updatingIds.includes(c.id)}
+                        className="rounded-lg px-2 py-1 text-sm border border-border text-muted-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {updatingIds.includes(c.id) ? 'جاري…' : (c.hidden ? 'إظهار' : 'إخفاء')}
+                      </button>
+
+                      <button onClick={() => startEdit(c)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-primary">
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => handleDelete(c.id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {categories.length === 0 && (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">لا توجد أقسام</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden">
+          {categories.length === 0 ? (
+            <div className="px-4 py-8 text-center text-muted-foreground">
+              لا توجد أقسام
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {categories.map((c) => (
+                <div key={c.id} className="p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    {c.image_url && <img src={c.image_url} alt="" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />}
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         {inlineEditingId === c.id ? (
                           <div className="flex items-center gap-2">
                             <input
                               value={inlineEditingName}
                               onChange={(e) => setInlineEditingName(e.target.value)}
-                              className="rounded-lg border border-border bg-secondary px-2 py-1 text-sm text-foreground"
+                              className="rounded-lg border border-border bg-secondary px-2 py-1 text-sm text-foreground flex-1"
                             />
                             <button
                               onClick={async () => {
@@ -256,75 +385,70 @@ export default function AdminSections() {
                           </div>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground">{c.id}</div>
+                      <div className="text-xs text-muted-foreground">{c.slug}</div>
+                      <div className="text-xs text-muted-foreground">ID: {c.id}</div>
+                    </div>
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      <button
+                        onClick={async () => {
+                          if (updatingIds.includes(c.id)) return;
+
+                          // client-only toggle when DB doesn't support `hidden`
+                          if (!hiddenSupported) {
+                            const newHidden = !Boolean(c.hidden);
+                            setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: newHidden } : cat)));
+
+                            // persist client-only hidden state so storefront UI (useCategories)
+                            // will filter this category out immediately for this browser.
+                            const ids = getLocalHiddenCategories();
+                            const next = newHidden ? Array.from(new Set([...ids, c.id])) : ids.filter((id) => id !== c.id);
+                            setLocalHiddenCategories(next);
+
+                            toast({ title: newHidden ? 'تم إخفاء القسم محليًا' : 'تم إظهار القسم محليًا' });
+                            return;
+                          }
+
+                          // DB-backed optimistic update (existing flow)
+                          const originalHidden = !!c.hidden;
+                          const newHidden = !originalHidden;
+
+                          setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: newHidden } : cat)));
+                          setUpdatingIds((prev) => [...prev, c.id]);
+
+                          try {
+                            const { error } = await supabase.from("categories").update({ hidden: newHidden } as any).eq("id", c.id);
+                            if (error) {
+                              setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: originalHidden } : cat)));
+                              toast({ title: "خطأ", description: error.message, variant: "destructive" });
+                            } else {
+                              toast({ title: newHidden ? 'تم إخفاء القسم' : 'تم إظهار القسم' });
+                            }
+                          } catch (err: any) {
+                            setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: originalHidden } : cat)));
+                            toast({ title: "خطأ عند التعديل", description: String(err), variant: "destructive" });
+                          } finally {
+                            setUpdatingIds((prev) => prev.filter((id) => id !== c.id));
+                          }
+                        }}
+                        disabled={updatingIds.includes(c.id)}
+                        className="rounded-lg px-2 py-1 text-sm border border-border text-muted-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {updatingIds.includes(c.id) ? 'جاري…' : (c.hidden ? 'إظهار' : 'إخفاء')}
+                      </button>
+
+                      <button onClick={() => startEdit(c)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-primary">
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => handleDelete(c.id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
-                </td>
-                <td className="px-4 py-3">{c.slug}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1 items-center">
-                    <button
-                      onClick={async () => {
-                        if (updatingIds.includes(c.id)) return;
-
-                        // client-only toggle when DB doesn't support `hidden`
-                        if (!hiddenSupported) {
-                          const newHidden = !Boolean(c.hidden);
-                          setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: newHidden } : cat)));
-
-                          // persist client-only hidden state so storefront UI (useCategories)
-                          // will filter this category out immediately for this browser.
-                          const ids = getLocalHiddenCategories();
-                          const next = newHidden ? Array.from(new Set([...ids, c.id])) : ids.filter((id) => id !== c.id);
-                          setLocalHiddenCategories(next);
-
-                          toast({ title: newHidden ? 'تم إخفاء القسم محليًا' : 'تم إظهار القسم محليًا' });
-                          return;
-                        }
-
-                        // DB-backed optimistic update (existing flow)
-                        const originalHidden = !!c.hidden;
-                        const newHidden = !originalHidden;
-
-                        setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: newHidden } : cat)));
-                        setUpdatingIds((prev) => [...prev, c.id]);
-
-                        try {
-                          const { error } = await supabase.from("categories").update({ hidden: newHidden } as any).eq("id", c.id);
-                          if (error) {
-                            setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: originalHidden } : cat)));
-                            toast({ title: "خطأ", description: error.message, variant: "destructive" });
-                          } else {
-                            toast({ title: newHidden ? 'تم إخفاء القسم' : 'تم إظهار القسم' });
-                          }
-                        } catch (err: any) {
-                          setCategories((prev) => prev.map((cat) => (cat.id === c.id ? { ...cat, hidden: originalHidden } : cat)));
-                          toast({ title: "خطأ عند التعديل", description: String(err), variant: "destructive" });
-                        } finally {
-                          setUpdatingIds((prev) => prev.filter((id) => id !== c.id));
-                        }
-                      }}
-                      disabled={updatingIds.includes(c.id)}
-                      className="rounded-lg px-2 py-1 text-sm border border-border text-muted-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {updatingIds.includes(c.id) ? 'جاري…' : (c.hidden ? 'إظهار' : 'إخفاء')}
-                    </button>
-
-                    <button onClick={() => startEdit(c)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-primary">
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => handleDelete(c.id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {categories.length === 0 && (
-              <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">لا توجد أقسام</td></tr>
-            )}
-          </tbody>
-        </table>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

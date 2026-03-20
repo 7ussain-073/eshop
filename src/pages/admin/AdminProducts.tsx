@@ -416,40 +416,186 @@ export default function AdminProducts() {
       )}
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-secondary/50">
-              <th className="px-4 py-3 text-right font-medium text-muted-foreground">المنتج</th>
-              <th className="px-4 py-3 text-right font-medium text-muted-foreground">القسم</th>
-              <th className="px-4 py-3 text-right font-medium text-muted-foreground">الأسعار</th>
-              <th className="px-4 py-3 text-right font-medium text-muted-foreground">الحالة</th>
-              <th className="px-4 py-3 text-right font-medium text-muted-foreground">إجراءات</th>
-            </tr>
-          </thead>
+        {/* Desktop Table */}
+        <div className="hidden md:block">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-secondary/50">
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">المنتج</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">القسم</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">الأسعار</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">الحالة</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">إجراءات</th>
+              </tr>
+            </thead>
 
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.id} className="border-b border-border last:border-0">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    {p.image_url && <img src={p.image_url} alt="" className="h-10 w-10 rounded-lg object-cover" />}
-                    <span className="font-medium text-foreground">{p.name}</span>
+            <tbody>
+              {products.map((p) => (
+                <tr key={p.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {p.image_url && <img src={p.image_url} alt="" className="h-10 w-10 rounded-lg object-cover" />}
+                      <span className="font-medium text-foreground">{p.name}</span>
+                    </div>
+                  </td>
+
+                  <td className="px-4 py-3 text-sm text-muted-foreground">
+                    {categories.find((c) => c.id === p.category_id)?.name || "بدون قسم"}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    {p.product_variants.length > 0 ? (
+                      <div className="space-y-1">
+                        {p.product_variants
+                          .slice(0, expandedProduct === p.id ? undefined : 2)
+                          .map((v) => (
+                            <div key={v.id} className="flex items-center gap-2 text-xs">
+                              <span className="text-muted-foreground">{v.duration}:</span>
+
+                              {v.sale_price ? (
+                                <>
+                                  <span className="font-semibold text-primary">{v.sale_price} ر.س</span>
+                                  <span className="text-muted-foreground line-through">{v.price}</span>
+                                </>
+                              ) : (
+                                <span className="font-semibold text-foreground">{v.price} ر.س</span>
+                              )}
+
+                              <span
+                                className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                                  v.stock_status === "in_stock"
+                                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                }`}
+                              >
+                                {v.stock_status === "in_stock" ? "متوفر" : "نفذ"}
+                              </span>
+                            </div>
+                          ))}
+
+                        {p.product_variants.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedProduct(expandedProduct === p.id ? null : p.id)}
+                            className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+                          >
+                            {expandedProduct === p.id ? (
+                              <>
+                                <ChevronUp className="h-3 w-3" /> أقل
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-3 w-3" /> +{p.product_variants.length - 2} أخرى
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">بدون أسعار</span>
+                    )}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        p.status === "published"
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                          : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                      }`}
+                    >
+                      {p.status === "published" ? "منشور" : "مسودة"}
+                    </span>
+                  </td>
+
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(p)}
+                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-primary"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(p.id)}
+                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+
+              {products.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                    لا توجد منتجات بعد
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="md:hidden">
+          {products.length === 0 ? (
+            <div className="px-4 py-8 text-center text-muted-foreground">
+              لا توجد منتجات بعد
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {products.map((p) => (
+                <div key={p.id} className="p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    {p.image_url && <img src={p.image_url} alt="" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-foreground truncate">{p.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {categories.find((c) => c.id === p.category_id)?.name || "بدون قسم"}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            p.status === "published"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                          }`}
+                        >
+                          {p.status === "published" ? "منشور" : "مسودة"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(p)}
+                        className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-primary"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(p.id)}
+                        className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                </td>
 
-                <td className="px-4 py-3 text-sm text-muted-foreground">
-                  {categories.find((c) => c.id === p.category_id)?.name || "بدون قسم"}
-                </td>
-
-                <td className="px-4 py-3">
-                  {p.product_variants.length > 0 ? (
+                  {p.product_variants.length > 0 && (
                     <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">الأسعار:</p>
                       {p.product_variants
                         .slice(0, expandedProduct === p.id ? undefined : 2)
                         .map((v) => (
                           <div key={v.id} className="flex items-center gap-2 text-xs">
                             <span className="text-muted-foreground">{v.duration}:</span>
-
                             {v.sale_price ? (
                               <>
                                 <span className="font-semibold text-primary">{v.sale_price} ر.س</span>
@@ -458,7 +604,6 @@ export default function AdminProducts() {
                             ) : (
                               <span className="font-semibold text-foreground">{v.price} ر.س</span>
                             )}
-
                             <span
                               className={`rounded-full px-1.5 py-0.5 text-[10px] ${
                                 v.stock_status === "in_stock"
@@ -470,7 +615,6 @@ export default function AdminProducts() {
                             </span>
                           </div>
                         ))}
-
                       {p.product_variants.length > 2 && (
                         <button
                           type="button"
@@ -489,54 +633,12 @@ export default function AdminProducts() {
                         </button>
                       )}
                     </div>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">بدون أسعار</span>
                   )}
-                </td>
-
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      p.status === "published"
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                        : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                    }`}
-                  >
-                    {p.status === "published" ? "منشور" : "مسودة"}
-                  </span>
-                </td>
-
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => startEdit(p)}
-                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-primary"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(p.id)}
-                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-
-            {products.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                  لا توجد منتجات بعد
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
